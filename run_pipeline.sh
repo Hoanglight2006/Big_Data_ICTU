@@ -35,6 +35,7 @@ echo -e "\n[1/6] Kiểm tra dịch vụ Hadoop (HDFS & YARN)..."
 
 if hdfs dfs -ls / &> /dev/null; then
     echo "  ✅ Cụm Hadoop (HDFS) đang hoạt động và sẵn sàng nhận kết nối!"
+    hdfs dfsadmin -safemode leave 2>/dev/null || true
 else
     CURRENT_USER=$(whoami)
     echo "  ⚠️ Chưa kết nối được HDFS -> Đang khởi động Hadoop với quyền người dùng: $CURRENT_USER..."

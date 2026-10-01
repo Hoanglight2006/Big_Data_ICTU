@@ -35,6 +35,9 @@ def main():
     print(f" Local Spool Dir: {SPOOL_DIR}")
     print("==========================================================")
 
+    # 0. Đảm bảo NameNode không bị kẹt ở chế độ Safe Mode (Read-only)
+    run_command(["hdfs", "dfsadmin", "-safemode", "leave"])
+
     # 1. Tạo thư mục trên HDFS
     print(f"\n[1/3] Tạo thư mục trên HDFS: {HDFS_INPUT_DIR}")
     run_command(["hdfs", "dfs", "-mkdir", "-p", HDFS_INPUT_DIR])
