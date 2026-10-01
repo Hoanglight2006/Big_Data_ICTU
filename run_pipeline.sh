@@ -58,6 +58,20 @@ else
     fi
 fi
 
+# Kiểm tra dịch vụ YARN (ResourceManager phục vụ MapReduce)
+if ! yarn node -list &> /dev/null; then
+    echo "  ⚠️ Dịch vụ YARN (ResourceManager) chưa chạy -> Đang tự động khởi động YARN..."
+    CURRENT_USER=$(whoami)
+    export YARN_RESOURCEMANAGER_USER=$CURRENT_USER
+    export YARN_NODEMANAGER_USER=$CURRENT_USER
+    if [ -f "${HADOOP_HOME}/sbin/start-yarn.sh" ]; then
+        "${HADOOP_HOME}/sbin/start-yarn.sh" || true
+        sleep 5
+    fi
+else
+    echo "  ✅ Dịch vụ YARN (ResourceManager) đang hoạt động sẵn sàng!"
+fi
+
 # -----------------------------------------------------------------------------
 # BƯỚC 2: SINH DỮ LIỆU LOG (ĐẶNG VĂN VINH)
 # -----------------------------------------------------------------------------
