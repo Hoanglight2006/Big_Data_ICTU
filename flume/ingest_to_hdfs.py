@@ -29,8 +29,8 @@ def run_command(cmd):
 
 def main():
     print("==========================================================")
-    print(" 🚀 INGESTION: ĐẨY DỮ LIỆU LOG VÀO HDFS THEO PHÂN VÙNG NGÀY")
-    print(f" Ngày phân tích : {LOG_DATE}")
+    print(" [INFO] INGESTION: NAP DU LIEU LOG VAO HDFS")
+    print(f" Ngay phan tich : {LOG_DATE}")
     print(f" HDFS Input Dir : {HDFS_INPUT_DIR}")
     print(f" Local Spool Dir: {SPOOL_DIR}")
     print("==========================================================")
@@ -39,7 +39,7 @@ def main():
     run_command(["hdfs", "dfsadmin", "-safemode", "leave"])
 
     # 1. Tạo thư mục trên HDFS
-    print(f"\n[1/3] Tạo thư mục trên HDFS: {HDFS_INPUT_DIR}")
+    print(f"\n[1/3] Tao thu muc tren HDFS: {HDFS_INPUT_DIR}")
     run_command(["hdfs", "dfs", "-mkdir", "-p", HDFS_INPUT_DIR])
 
     # 2. Tìm file log trong spool dir
@@ -52,19 +52,19 @@ def main():
             log_files = ["data/fake_logs.json"]
 
     if not log_files:
-        print(f"[ERROR] Không tìm thấy file log cho ngày {LOG_DATE} tại {SPOOL_DIR}")
-        print("        Hãy chạy: python3 data/generate_logs.py trước.")
+        print(f"[ERROR] Khong tim thay file log cho ngay {LOG_DATE} tai {SPOOL_DIR}")
+        print("        Hay chay: python3 data/generate_logs.py truoc.")
         sys.exit(1)
 
     target_file = log_files[0]
-    print(f"\n[2/3] Nạp file log [{target_file}] lên HDFS [{HDFS_INPUT_DIR}]...")
+    print(f"\n[2/3] Nap file log [{target_file}] len HDFS [{HDFS_INPUT_DIR}]...")
     success = run_command(["hdfs", "dfs", "-put", "-f", target_file, f"{HDFS_INPUT_DIR}/access.log"])
 
     if success:
-        print(f"\n[3/3] ✅ Nạp dữ liệu vào HDFS thành công!")
+        print(f"\n[3/3] [INFO] Nap du lieu vao HDFS thanh cong.")
         run_command(["hdfs", "dfs", "-ls", HDFS_INPUT_DIR])
     else:
-        print(f"\n[3/3] ❌ Nạp dữ liệu vào HDFS thất bại. Hãy kiểm tra dịch vụ Hadoop.")
+        print(f"\n[3/3] [ERROR] Nap du lieu vao HDFS that bai. Hay kiem tra dich vu Hadoop.")
         sys.exit(1)
 
 if __name__ == "__main__":

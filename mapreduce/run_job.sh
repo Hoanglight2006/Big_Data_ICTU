@@ -74,7 +74,7 @@ hdfs dfs -cat "${HDFS_OUTPUT}/part-*" > "${PROJECT_ROOT}/${LOCAL_RESULT_FILE}"
 cp "${PROJECT_ROOT}/${LOCAL_RESULT_FILE}" "${PROJECT_ROOT}/${DAILY_RESULT_FILE}"
 
 echo "=========================================================="
-echo "✅ Kết quả MapReduce đã được lưu tại: ${PROJECT_ROOT}/${LOCAL_RESULT_FILE}"
+echo "[INFO] Kết quả MapReduce đã được lưu tại: ${PROJECT_ROOT}/${LOCAL_RESULT_FILE}"
 echo "   Xem mẫu 10 dòng đầu:"
 head -n 10 "${PROJECT_ROOT}/${LOCAL_RESULT_FILE}"
 echo "=========================================================="

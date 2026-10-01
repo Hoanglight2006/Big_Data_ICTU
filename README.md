@@ -49,9 +49,9 @@ log-simulation/
 ├── mapreduce/          # Hadoop Streaming Mapper & Reducer (Dương Đình Hoàng)
 ├── anomaly/            # Bộ lọc 6 quy tắc phát hiện bất thường & báo cáo (Dương Đình Hoàng)
 ├── Dockerfile          # Docker image đóng gói ứng dụng pipeline & Hadoop client
-├── docker-compose.yml  # Triển khai trọn gói cụm Hadoop (HDFS, YARN) & Pipeline Runner
-├── hadoop.env          # Biến môi trường chuẩn cho cụm Hadoop
-├── run_pipeline.sh     # Script chạy tự động 1-chạm kết nối toàn bộ luồng 5 thành viên
+├── docker-compose.yml  # Cấu hình cụm Hadoop (HDFS, YARN) và Pipeline Runner
+├── hadoop.env          # Biến môi trường cho cụm Hadoop
+├── run_pipeline.sh     # Script chạy tự động toàn bộ pipeline
 └── README.md           # Hướng dẫn chi tiết
 ```
 
@@ -59,34 +59,34 @@ log-simulation/
 
 ## 3. Hướng Dẫn Vận Hành
 
-### Cách 1: Chạy Siêu Tốc Bằng Docker Compose (Khuyên Dùng — Chạy Được Trên Mọi Máy)
+### Cách 1: Triển khai bằng Docker Compose
 
-Không cần cài đặt thủ công Java hay Hadoop, chỉ cần máy tính đã cài **Docker Desktop**:
+Yêu cầu máy chủ đã cài đặt Docker và Docker Compose:
 
 ```bash
-# 1. Khởi động toàn bộ cụm Hadoop và Pipeline runner
+# 1. Khởi động cụm Hadoop và Pipeline runner
 docker compose up -d
 
-# 2. Xem tiến trình chạy tự động
+# 2. Theo dõi tiến trình thực thi
 docker logs -f log-pipeline-runner
 
-# 3. Xem giao diện Web UI:
+# 3. Giao diện Web UI quản trị:
 # - Hadoop HDFS NameNode: http://localhost:9870
 # - YARN Resource Manager: http://localhost:8088
 ```
 
-Kết quả báo cáo `data/anomaly_report.json` và `data/mapreduce_results.txt` sẽ tự động xuất hiện ngay trên máy của bạn (thông qua Docker volume).
+Kết quả báo cáo `data/anomaly_report.json` và `data/mapreduce_results.txt` được lưu tại thư mục `data/` trên máy host qua volume mount.
 
 ---
 
-### Cách 2: Chạy Trực Tiếp Trên Máy Ảo Ubuntu / Linux Có Sẵn Hadoop
+### Cách 2: Chạy trực tiếp trên máy ảo Ubuntu / Linux đã cấu hình Hadoop
 
-#### Chạy tự động 1 lệnh duy nhất (Toàn bộ 6 bước):
+#### Chạy toàn bộ pipeline (6 bước):
 ```bash
-# Mặc định tự động lấy ngày hôm nay theo thời gian thực:
+# Mặc định lấy ngày hiện tại:
 bash run_pipeline.sh
 
-# (Tùy chọn) Truyền ngày cụ thể nếu muốn phân tích lại ngày trong quá khứ:
+# (Tùy chọn) Truyền ngày cụ thể để xử lý:
 # bash run_pipeline.sh 2026-10-01
 ```
 
@@ -115,9 +115,9 @@ bash run_pipeline.sh
 
 ---
 
-## 4. Kịch Bản Bất Thường Được Phát Hiện (6 Rules)
+## 4. Các Quy Tắc Phát Hiện Bất Thường (6 Rules)
 
-Hệ thống tự động phát hiện chính xác các dấu hiệu bất thường đã được cài cắm:
+Hệ thống phát hiện các sự cố bất thường dựa trên 6 quy tắc:
 1. **Rule 1 (Traffic Spike):** Giờ 15:00 tăng vọt số lượng request (vượt ngưỡng $\mu + 2\sigma$ hoặc $\mu + 3\sigma$).
 2. **Rule 2 (High Error Rate):** Tỉ lệ log `ERROR` lúc 15:00 vượt quá 5%.
 3. **Rule 3 (High 5xx Rate):** Tỉ lệ lỗi máy chủ HTTP 500/503 lúc 15:00 chiếm hơn 40%.

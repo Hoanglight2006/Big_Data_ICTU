@@ -51,7 +51,7 @@ def clean_and_structure_logs(input_path="data/fake_logs.json",
     Tiến hành làm sạch và chuẩn hóa dữ liệu log.
     """
     print("================================================================================")
-    print(" 🧹 TIỀN XỬ LÝ & LÀM SẠCH DỮ LIỆU LOG (PREPROCESSING & DATA CLEANING)")
+    print(" TIỀN XỬ LÝ & LÀM SẠCH DỮ LIỆU LOG (PREPROCESSING & DATA CLEANING)")
     print(" Phụ trách: Nông Minh Trí & Triệu Văn Huy (Group 3)")
     print(f" Nguồn log thô       : {input_path}")
     print(f" File dữ liệu sạch   : {output_clean_path}")
@@ -174,12 +174,12 @@ def clean_and_structure_logs(input_path="data/fake_logs.json",
     clean_percent = (clean_records / total_records * 100) if total_records > 0 else 0
     corrupt_percent = (corrupted_records / total_records * 100) if total_records > 0 else 0
 
-    print("📊 KẾT QUẢ TIỀN XỬ LÝ & LÀM SẠCH:")
+    print("KẾT QUẢ TIỀN XỬ LÝ & LÀM SẠCH:")
     print(f"   - Tổng số log nhận vào     : {total_records:,}")
     print(f"   - Số bản ghi SẠCH (Clean)  : {clean_records:,} ({clean_percent:.2f}%)")
     print(f"   - Số bản ghi HỎNG/RÁC      : {corrupted_records:,} ({corrupt_percent:.2f}%)")
-    print(f"\n✅ Dữ liệu sạch đã lưu tại: {output_clean_path}")
-    print("   👉 Đảm bảo chất lượng đầu vào chuẩn xác 100% cho MapReduce Job của Leader Dương Đình Hoàng.\n")
+    print(f"\nDữ liệu sạch đã lưu tại: {output_clean_path}")
+    print(f"Đã chuẩn hóa định dạng đầu vào cho bước MapReduce.\n")
 
 if __name__ == "__main__":
     src_file = sys.argv[1] if len(sys.argv) > 1 else "data/fake_logs.json"

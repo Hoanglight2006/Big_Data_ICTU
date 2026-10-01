@@ -130,7 +130,7 @@ def detect_anomalies(data):
     print("\n" + "=" * 80)
     print("                BÁO CÁO PHÁT HIỆN BẤT THƯỜNG (ANOMALY DETECTION REPORT)                ")
     print("=" * 80)
-    print(f"📊 Thống kê Traffic theo giờ: Mean = {mean_req:.1f} reqs/h | StdDev = {std_req:.1f}")
+    print(f"Thống kê Traffic theo giờ: Mean = {mean_req:.1f} reqs/h | StdDev = {std_req:.1f}")
     print(f"   Ngưỡng Cảnh Báo (WARNING):  > {warn_threshold:.1f} reqs/h (Mean + 2*Std)")
     print(f"   Ngưỡng Nghiêm Trọng (CRIT): > {crit_threshold:.1f} reqs/h (Mean + 3*Std)")
     print("-" * 80)
@@ -199,20 +199,20 @@ def detect_anomalies(data):
                 "message": f"Response time TB giờ {h}:00 cao bất thường: {avg_resp:.1f}ms"
             })
 
-        status_text = ", ".join(status_flags) if status_flags else "NORMAL ✅"
-        badge = "🚨 " if "CRITICAL" in status_text or "HIGH" in status_text else "   "
+        status_text = ", ".join(status_flags) if status_flags else "NORMAL"
+        badge = "[!] " if "CRITICAL" in status_text or "HIGH" in status_text else "    "
         print(f"{badge}{h}:00  | {total:<10,} | {err_count} ({err_rate:4.1f}%)   | {c5xx} ({r5xx_rate:4.1f}%)   | {avg_resp:<15.1f} | {status_text}")
 
     print("=" * 80)
 
     # Rule 4: IP Flood Detection
-    print("\n🚨 KIỂM TRA PHÁT HIỆN TẤN CÔNG / IP FLOOD (Ngưỡng > 1,000 req/h):")
+    print("\nKiểm tra phát hiện tấn công / IP Flood (Ngưỡng > 1,000 req/h):")
     found_flood = False
     for h, ip_map in ip_reqs.items():
         for ip, count in ip_map.items():
             if count >= MAX_IP_REQUESTS_PER_HOUR:
                 found_flood = True
-                print(f"   [ALERT] IP: {ip:<15} | Giờ: {h}:00 | Số request: {count:,} reqs/h -> CÓ DẤU HIỆU FLOOD/DDOS!")
+                print(f"   [ALERT] IP: {ip:<15} | Giờ: {h}:00 | Số request: {count:,} reqs/h -> Co dau hieu IP Flood!")
                 anomalies.append({
                     "rule": "R04_IP_FLOOD",
                     "severity": "CRITICAL",
@@ -224,13 +224,13 @@ def detect_anomalies(data):
         print("   Không phát hiện IP nào vượt ngưỡng flood.")
 
     # Rule 6: Top Endpoints gặp lỗi
-    print("\n📌 TOP ENDPOINTS GẶP LỖI NHIỀU NHẤT:")
+    print("\nTop endpoints gặp lỗi nhiều nhất:")
     sorted_endpoints = sorted(endpoint_errs.items(), key=lambda x: x[1], reverse=True)[:5]
     for ep, count in sorted_endpoints:
         print(f"   - {ep:<30}: {count:,} lỗi")
 
     print("\n" + "=" * 80)
-    print(f"✅ TỔNG KẾT: Đã phát hiện {len(anomalies)} cảnh báo bất thường.")
+    print(f"Tổng kết: Đã phát hiện {len(anomalies)} cảnh báo bất thường.")
     print("=" * 80)
 
     # Lưu kết quả ra file JSON

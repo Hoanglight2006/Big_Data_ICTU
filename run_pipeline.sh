@@ -1,44 +1,41 @@
 #!/bin/bash
 # =============================================================================
-# run_pipeline.sh — Tự Động Hóa 100% Pipeline Phân Tích Log Theo Ngày
+# run_pipeline.sh — Pipeline phan tich log batch theo ngay
 #
-# Đề tài: Log Analysis and Anomaly Detection for Web Servers
-# Chương trình: Samsung Innovation Campus (SIC) - Group 3
+# De tai: Log Analysis and Anomaly Detection for Web Servers
+# Chuong trinh: Samsung Innovation Campus (SIC) - Group 3
 # =============================================================================
 
 set -e
 
-# Xác định thư mục dự án linh hoạt
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Kích hoạt Python virtualenv nếu tồn tại
 if [ -d "venv" ]; then
     source venv/bin/activate
 fi
 
-# Thiết lập các biến môi trường (Mặc định lấy ngày hôm nay: YYYY-MM-DD)
 export LOG_DATE="${1:-${LOG_DATE:-$(date +%F)}}"
 export HADOOP_HOME="${HADOOP_HOME:-$HOME/hadoop-3.2.1}"
 
 echo "=========================================================="
-echo " 🚀 BẮT ĐẦU PIPELINE PHÂN TÍCH LOG BATCH THEO NGÀY (SIC)"
-echo " Ngày phân tích: $LOG_DATE"
+echo " [INFO] BAT DAU PIPELINE PHAN TICH LOG (SIC GROUP 3)"
+echo " Ngay phan tich: $LOG_DATE"
 echo " Hadoop Home   : $HADOOP_HOME"
-echo " Thư mục chạy  : $SCRIPT_DIR"
+echo " Thu muc chay  : $SCRIPT_DIR"
 echo "=========================================================="
 
 # -----------------------------------------------------------------------------
-# BƯỚC 1: KIỂM TRA & TỰ ĐỘNG BẬT CÁC DỊCH VỤ HADOOP CLUSTER
+# BUOC 1: KIEM TRA & KHOI DONG DICH VU HADOOP CLUSTER
 # -----------------------------------------------------------------------------
-echo -e "\n[1/6] Kiểm tra dịch vụ Hadoop (HDFS & YARN)..."
+echo -e "\n[1/6] Kiem tra dich vu Hadoop (HDFS & YARN)..."
 
 if hdfs dfs -ls / &> /dev/null; then
-    echo "  ✅ Cụm Hadoop (HDFS) đang hoạt động và sẵn sàng nhận kết nối!"
+    echo "  [INFO] Cum Hadoop (HDFS) dang hoat dong."
     hdfs dfsadmin -safemode leave 2>/dev/null || true
 else
     CURRENT_USER=$(whoami)
-    echo "  ⚠️ Chưa kết nối được HDFS -> Đang khởi động Hadoop với quyền người dùng: $CURRENT_USER..."
+    echo "  [WARN] Chua ket noi duoc HDFS. Khoi dong Hadoop voi user: $CURRENT_USER..."
     if [ -f "${HADOOP_HOME}/sbin/start-all.sh" ]; then
         export HDFS_NAMENODE_USER=$CURRENT_USER
         export HDFS_DATANODE_USER=$CURRENT_USER
@@ -47,10 +44,10 @@ else
         export YARN_NODEMANAGER_USER=$CURRENT_USER
         "${HADOOP_HOME}/sbin/start-all.sh" || true
         
-        echo "  Đang đợi các tiến trình Hadoop khởi động ổn định..."
+        echo "  [INFO] Cho cac tien trinh Hadoop khoi dong on dinh..."
         for i in {1..15}; do
             if hdfs dfs -ls / &> /dev/null; then
-                echo "  ✅ Hadoop đã khởi động thành công và sẵn sàng nhận kết nối!"
+                echo "  [INFO] Hadoop da khoi dong thanh cong."
                 break
             fi
             sleep 2
@@ -58,9 +55,9 @@ else
     fi
 fi
 
-# Kiểm tra dịch vụ YARN (ResourceManager phục vụ MapReduce)
+# Kiem tra dich vu YARN (ResourceManager)
 if ! yarn node -list &> /dev/null; then
-    echo "  ⚠️ Dịch vụ YARN (ResourceManager) chưa chạy -> Đang tự động khởi động YARN..."
+    echo "  [WARN] YARN ResourceManager chua chay. Dang khoi dong YARN..."
     CURRENT_USER=$(whoami)
     export YARN_RESOURCEMANAGER_USER=$CURRENT_USER
     export YARN_NODEMANAGER_USER=$CURRENT_USER
@@ -69,40 +66,40 @@ if ! yarn node -list &> /dev/null; then
         sleep 5
     fi
 else
-    echo "  ✅ Dịch vụ YARN (ResourceManager) đang hoạt động sẵn sàng!"
+    echo "  [INFO] Dich vu YARN (ResourceManager) dang hoat dong."
 fi
 
 # -----------------------------------------------------------------------------
-# BƯỚC 2: SINH DỮ LIỆU LOG (ĐẶNG VĂN VINH)
+# BUOC 2: SINH DU LIEU LOG (DANG VAN VINH)
 # -----------------------------------------------------------------------------
-echo -e "\n[2/6] [ĐẶNG VĂN VINH] Sinh dữ liệu log giả lập 24 giờ cho ngày $LOG_DATE..."
+echo -e "\n[2/6] [Dang Van Vinh] Sinh du lieu log web server cho ngay $LOG_DATE..."
 python3 data/generate_logs.py
 
 # -----------------------------------------------------------------------------
-# BƯỚC 3: INGESTION VÀO HDFS THEO NGÀY (ĐẶNG VĂN VINH - FLUME)
+# BUOC 3: INGESTION VAO HDFS THEO NGAY (DANG VAN VINH - FLUME)
 # -----------------------------------------------------------------------------
-echo -e "\n[3/6] [ĐẶNG VĂN VINH] Thu thập & nạp dữ liệu vào HDFS phân vùng theo ngày (/data/logs/$LOG_DATE)..."
+echo -e "\n[3/6] [Dang Van Vinh] Flume Ingestion nap du lieu vao HDFS (/data/logs/$LOG_DATE)..."
 python3 flume/ingest_to_hdfs.py
 
 # -----------------------------------------------------------------------------
-# BƯỚC 4: LÀM SẠCH & CHUẨN HÓA DỮ LIỆU (NÔNG MINH TRÍ & TRIỆU VĂN HUY)
+# BUOC 4: LAM SACH & CHUAN HOA DU LIEU (NONG MINH TRI & TRIEU VAN HUY)
 # -----------------------------------------------------------------------------
-echo -e "\n[4/6] [NÔNG MINH TRÍ & TRIỆU VĂN HUY] Tiền xử lý, lọc rác và chuẩn hóa dữ liệu..."
+echo -e "\n[4/6] [Nong Minh Tri & Trieu Van Huy] Preprocessing, loc loi va chuan hoa du lieu..."
 python3 preprocessing/cleaner.py
 
 # -----------------------------------------------------------------------------
-# BƯỚC 5: CHẠY HADOOP STREAMING MAPREDUCE (DƯƠNG ĐÌNH HOÀNG)
+# BUOC 5: CHAY HADOOP STREAMING MAPREDUCE (DUONG DINH HOANG)
 # -----------------------------------------------------------------------------
-echo -e "\n[5/6] [DƯƠNG ĐÌNH HOÀNG] Thực thi Hadoop MapReduce Streaming phân tán trên YARN..."
+echo -e "\n[5/6] [Duong Dinh Hoang] Thuc thi Hadoop MapReduce Streaming tren YARN..."
 bash mapreduce/run_job.sh "$LOG_DATE"
 
 # -----------------------------------------------------------------------------
-# BƯỚC 6: PHÂN TÍCH BẤT THƯỜNG & XUẤT BÁO CÁO (DƯƠNG ĐÌNH HOÀNG)
+# BUOC 6: PHAN TICH BAT THUONG & XUAT BAO CAO (DUONG DINH HOANG)
 # -----------------------------------------------------------------------------
-echo -e "\n[6/6] [DƯƠNG ĐÌNH HOÀNG] Phân tích bất thường (Rule-based Anomaly Detection)..."
+echo -e "\n[6/6] [Duong Dinh Hoang] Rule-based Anomaly Detection va xuat bao cao..."
 python3 anomaly/detector.py
 
 echo "=========================================================="
-echo "🎉 HOÀN TẤT TOÀN BỘ PIPELINE BATCH THEO NGÀY THÀNH CÔNG!"
-echo " Báo cáo đã lưu tại: data/anomaly_report.json"
+echo " [INFO] HOAN TAT TOAN BO PIPELINE"
+echo " Bao cao da duoc luu tai: data/anomaly_report.json"
 echo "=========================================================="

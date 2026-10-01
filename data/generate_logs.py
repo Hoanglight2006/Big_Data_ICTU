@@ -213,14 +213,14 @@ def generate_logs():
     except Exception:
         pass
 
-    print(f"\n✅ Hoàn thành! Đã tạo {len(all_logs):,} logs → {OUTPUT_FILE}")
+    print(f"\n[INFO] Đã tạo thành công {len(all_logs):,} logs -> {OUTPUT_FILE}")
     print(f"   Anomaly được inject vào giờ {ANOMALY_START_HOUR:02d}:00 – {ANOMALY_END_HOUR:02d}:00")
     print(f"   Flood IP: {ANOMALY_IP}")
 
     # Thống kê nhanh
     error_count = sum(1 for l in all_logs if l["level"] == "ERROR")
     status_5xx  = sum(1 for l in all_logs if l["status_code"] >= 500)
-    print(f"\n📊 Thống kê:")
+    print(f"\nThống kê:")
     print(f"   Total logs   : {len(all_logs):,}")
     print(f"   ERROR level  : {error_count:,} ({error_count/len(all_logs)*100:.1f}%)")
     print(f"   HTTP 5xx     : {status_5xx:,}  ({status_5xx/len(all_logs)*100:.1f}%)")
@@ -229,15 +229,15 @@ def generate_logs():
 def generate_continuous_logs():
     """
     Chế độ sinh log liên tục (Continuous Generation) — Nhiệm vụ của Đặng Văn Vinh
-    Mô phỏng máy chủ Web Server thực tế nhả log liên tục theo thời gian thực vào data/spool/web_access_live.log
+    Mô phỏng máy chủ Web Server phát sinh log liên tục theo thời gian thực vào data/spool/web_access_live.log
     """
     import time
     continuous_file = os.path.join(SPOOL_DIR, f"web_access_live_{LOG_DATE}.log")
     os.makedirs(SPOOL_DIR, exist_ok=True)
     print("================================================================================")
-    print(" 🌐 CONTINUOUS WEB SERVER LOG GENERATOR (ĐẶNG VĂN VINH)")
-    print(f" Đang ghi log thời gian thực vào: {continuous_file}")
-    print(" Nhấn Ctrl + C để dừng bất kỳ lúc nào...")
+    print(" CONTINUOUS WEB SERVER LOG GENERATOR (ĐẶNG VĂN VINH)")
+    print(f" Ghi log thời gian thực vào: {continuous_file}")
+    print(" Nhấn Ctrl + C để dừng...")
     print("================================================================================")
     ip_pool = [generate_ip() for _ in range(50)]
     counter = 0
@@ -255,11 +255,11 @@ def generate_continuous_logs():
                 f.flush()
                 counter += 1
                 if counter % 5 == 0:
-                    status_emoji = "✅" if log["status_code"] < 400 else "⚠️"
-                    print(f"[{log['timestamp']}] {status_emoji} {log['method']} {log['endpoint']:<25} | Status: {log['status_code']} | {log['response_time_ms']}ms | IP: {log['ip']}")
+                    status_flag = "OK  " if log["status_code"] < 400 else "WARN"
+                    print(f"[{log['timestamp']}] [{status_flag}] {log['method']} {log['endpoint']:<25} | Status: {log['status_code']} | {log['response_time_ms']}ms | IP: {log['ip']}")
                 time.sleep(random.uniform(0.05, 0.2))
     except KeyboardInterrupt:
-        print(f"\n🛑 Đã dừng sinh log liên tục! Tổng cộng đã ghi {counter:,} logs vào {continuous_file}.")
+        print(f"\n[INFO] Đã dừng sinh log liên tục. Tổng cộng đã ghi {counter:,} logs vào {continuous_file}.")
 
 
 if __name__ == "__main__":

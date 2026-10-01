@@ -13,7 +13,7 @@ Trong các luồng Big Data thực tế, dữ liệu thô (raw logs) từ Web Se
 - Địa chỉ IP không hợp lệ hoặc bị chèn ký tự lạ.
 - Status code hoặc response time bị sai lệch kiểu dữ liệu.
 
-Module này do **Nông Minh Trí và Triệu Văn Huy** phụ trách nhằm loại bỏ toàn bộ dữ liệu bẩn, chuẩn hóa cấu trúc để cung cấp **nguồn dữ liệu chất lượng cao (high-quality structured input)** cho phân tích MapReduce của Leader **Dương Đình Hoàng**.
+Module này do **Nông Minh Trí và Triệu Văn Huy** phụ trách nhằm loại bỏ các bản ghi lỗi cú pháp hoặc thiếu trường thông tin, chuẩn hóa cấu trúc đầu vào cho bước phân tích MapReduce tiếp theo.
 
 ---
 
