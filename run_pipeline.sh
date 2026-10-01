@@ -33,15 +33,18 @@ echo "=========================================================="
 # -----------------------------------------------------------------------------
 echo -e "\n[1/6] Kiểm tra dịch vụ Hadoop (HDFS & YARN)..."
 
-if command -v jps &> /dev/null; then
-    if ! jps | grep -q "NameNode"; then
-        echo "  ⚠️ Hadoop chưa chạy -> Đang tự động khởi động Hadoop..."
-        if [ -f "${HADOOP_HOME}/sbin/start-all.sh" ]; then
-            "${HADOOP_HOME}/sbin/start-all.sh"
-            sleep 5
-        fi
-    else
-        echo "  ✅ Hadoop (NameNode, DataNode, YARN) đang hoạt động."
+if hdfs dfs -ls / &> /dev/null; then
+    echo "  ✅ Cụm Hadoop (HDFS) đang hoạt động và sẵn sàng nhận kết nối!"
+else
+    echo "  ⚠️ Chưa kết nối được HDFS -> Đang thử khởi động Hadoop nội bộ..."
+    if [ -f "${HADOOP_HOME}/sbin/start-all.sh" ]; then
+        export HDFS_NAMENODE_USER=root
+        export HDFS_DATANODE_USER=root
+        export HDFS_SECONDARYNAMENODE_USER=root
+        export YARN_RESOURCEMANAGER_USER=root
+        export YARN_NODEMANAGER_USER=root
+        "${HADOOP_HOME}/sbin/start-all.sh" || true
+        sleep 5
     fi
 fi
 
