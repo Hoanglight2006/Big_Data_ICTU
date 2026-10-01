@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Data & Spool generated
+data/spool/
+data/fake_logs.json
+data/cleaned_logs.json
+data/corrupted_logs.txt
+data/mapreduce_results*.txt
+data/anomaly_report*.json
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/

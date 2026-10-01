@@ -1,0 +1,76 @@
+version: "3.7"
+
+services:
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    restart: always
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    environment:
+      - CLUSTER_NAME=bigdata_cluster
+    env_file:
+      - ./hadoop.env
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    restart: always
+    depends_on:
+      - namenode
+    ports:
+      - "9864:9864"
+    env_file:
+      - ./hadoop.env
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+    container_name: resourcemanager
+    restart: always
+    depends_on:
+      - namenode
+      - datanode
+    ports:
+      - "8088:8088"
+    env_file:
+      - ./hadoop.env
+
+  nodemanager:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager
+    restart: always
+    depends_on:
+      - namenode
+      - datanode
+      - resourcemanager
+    ports:
+      - "8042:8042"
+    env_file:
+      - ./hadoop.env
+
+  pipeline:
+    build: .
+    container_name: log-pipeline-runner
+    depends_on:
+      - namenode
+      - resourcemanager
+    env_file:
+      - ./hadoop.env
+    environment:
+      - LOG_DATE=${LOG_DATE:-}
+      - TOTAL_LOGS=50000
+      - HADOOP_HOME=/opt/hadoop-3.2.1
+    volumes:
+      - ./data:/app/data
+    stdin_open: true
+    tty: true
+    command: /bin/bash -c "bash /app/run_pipeline.sh && tail -f /dev/null"
+
+volumes:
+  hadoop_namenode:
+  hadoop_datanode:

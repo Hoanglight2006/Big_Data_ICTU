@@ -21,6 +21,9 @@ import sys
 import os
 from datetime import datetime, timezone, timedelta
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # Thêm thư mục gốc vào Python path để import config
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.settings import (
@@ -201,6 +204,15 @@ def generate_logs():
         for log in all_logs:
             f.write(json.dumps(log) + "\n")
 
+    # Đồng thời ghi vào data/fake_logs.json để tương thích
+    try:
+        from config.settings import LEGACY_OUTPUT_FILE
+        with open(LEGACY_OUTPUT_FILE, "w") as f_legacy:
+            for log in all_logs:
+                f_legacy.write(json.dumps(log) + "\n")
+    except Exception:
+        pass
+
     print(f"\n✅ Hoàn thành! Đã tạo {len(all_logs):,} logs → {OUTPUT_FILE}")
     print(f"   Anomaly được inject vào giờ {ANOMALY_START_HOUR:02d}:00 – {ANOMALY_END_HOUR:02d}:00")
     print(f"   Flood IP: {ANOMALY_IP}")
@@ -214,5 +226,45 @@ def generate_logs():
     print(f"   HTTP 5xx     : {status_5xx:,}  ({status_5xx/len(all_logs)*100:.1f}%)")
 
 
+def generate_continuous_logs():
+    """
+    Chế độ sinh log liên tục (Continuous Generation) — Nhiệm vụ của Đặng Văn Vinh
+    Mô phỏng máy chủ Web Server thực tế nhả log liên tục theo thời gian thực vào data/spool/web_access_live.log
+    """
+    import time
+    continuous_file = os.path.join(SPOOL_DIR, f"web_access_live_{LOG_DATE}.log")
+    os.makedirs(SPOOL_DIR, exist_ok=True)
+    print("================================================================================")
+    print(" 🌐 CONTINUOUS WEB SERVER LOG GENERATOR (ĐẶNG VĂN VINH)")
+    print(f" Đang ghi log thời gian thực vào: {continuous_file}")
+    print(" Nhấn Ctrl + C để dừng bất kỳ lúc nào...")
+    print("================================================================================")
+    ip_pool = [generate_ip() for _ in range(50)]
+    counter = 0
+    try:
+        with open(continuous_file, "a", encoding="utf-8") as f:
+            while True:
+                now = datetime.now()
+                hour = now.hour
+                minute = now.minute
+                second = now.second
+                log = make_normal_log(hour, minute, second, ip_pool)
+                log["timestamp"] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+                line = json.dumps(log)
+                f.write(line + "\n")
+                f.flush()
+                counter += 1
+                if counter % 5 == 0:
+                    status_emoji = "✅" if log["status_code"] < 400 else "⚠️"
+                    print(f"[{log['timestamp']}] {status_emoji} {log['method']} {log['endpoint']:<25} | Status: {log['status_code']} | {log['response_time_ms']}ms | IP: {log['ip']}")
+                time.sleep(random.uniform(0.05, 0.2))
+    except KeyboardInterrupt:
+        print(f"\n🛑 Đã dừng sinh log liên tục! Tổng cộng đã ghi {counter:,} logs vào {continuous_file}.")
+
+
 if __name__ == "__main__":
-    generate_logs()
+    if len(sys.argv) > 1 and sys.argv[1] in ["--continuous", "-c", "--stream"]:
+        generate_continuous_logs()
+    else:
+        generate_logs()
+

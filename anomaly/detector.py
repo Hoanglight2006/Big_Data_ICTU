@@ -21,8 +21,12 @@ import math
 import json
 from collections import defaultdict
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.settings import (
+    LOG_DATE,
     THRESHOLD_WARNING_STD,
     THRESHOLD_CRITICAL_STD,
     MAX_5XX_RATE_PERCENT,
@@ -32,6 +36,7 @@ from config.settings import (
 
 RESULTS_FILE = "data/mapreduce_results.txt"
 REPORT_OUTPUT_FILE = "data/anomaly_report.json"
+DAILY_REPORT_OUTPUT_FILE = f"data/anomaly_report_{LOG_DATE}.json"
 
 def calculate_stats(values):
     """Tính Mean và Standard Deviation (độ lệch chuẩn)."""
@@ -57,37 +62,45 @@ def load_mapreduce_results(filepath):
     ip_requests = defaultdict(lambda: defaultdict(int)) # hour -> ip -> count
     endpoint_errors = defaultdict(int)
 
-    with open(filepath, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            parts = line.split("\t")
-            if len(parts) != 2:
-                continue
-            key, val_str = parts[0], parts[1]
+    lines = []
+    for enc in ["utf-8-sig", "utf-8", "utf-16", "cp1252"]:
+        try:
+            with open(filepath, "r", encoding=enc) as f:
+                lines = f.readlines()
+            break
+        except (UnicodeDecodeError, UnicodeError):
+            continue
 
-            if key.startswith("hour_req:"):
-                h = key.split(":")[1]
-                hour_requests[h] = int(float(val_str))
-            elif key.startswith("hour_err:"):
-                h = key.split(":")[1]
-                hour_errors[h] = int(float(val_str))
-            elif key.startswith("hour_5xx:"):
-                h = key.split(":")[1]
-                hour_5xx[h] = int(float(val_str))
-            elif key.startswith("hour_resp:"):
-                h = key.split(":")[1]
-                hour_avg_resp[h] = float(val_str)
-            elif key.startswith("ip_req:"):
-                # key dạng ip_req:<hour>:<ip>
-                subparts = key.split(":")
-                if len(subparts) == 3:
-                    h, ip = subparts[1], subparts[2]
-                    ip_requests[h][ip] = int(float(val_str))
-            elif key.startswith("endpoint_err:"):
-                endpoint = key.split(":", 1)[1]
-                endpoint_errors[endpoint] = int(float(val_str))
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("\t")
+        if len(parts) != 2:
+            continue
+        key, val_str = parts[0], parts[1]
+
+        if key.startswith("hour_req:"):
+            h = key.split(":")[1]
+            hour_requests[h] = int(float(val_str))
+        elif key.startswith("hour_err:"):
+            h = key.split(":")[1]
+            hour_errors[h] = int(float(val_str))
+        elif key.startswith("hour_5xx:"):
+            h = key.split(":")[1]
+            hour_5xx[h] = int(float(val_str))
+        elif key.startswith("hour_resp:"):
+            h = key.split(":")[1]
+            hour_avg_resp[h] = float(val_str)
+        elif key.startswith("ip_req:"):
+            # key dạng ip_req:<hour>:<ip>
+            subparts = key.split(":")
+            if len(subparts) == 3:
+                h, ip = subparts[1], subparts[2]
+                ip_requests[h][ip] = int(float(val_str))
+        elif key.startswith("endpoint_err:"):
+            endpoint = key.split(":", 1)[1]
+            endpoint_errors[endpoint] = int(float(val_str))
 
     return {
         "hour_requests": hour_requests,
@@ -233,7 +246,10 @@ def detect_anomalies(data):
     }
     with open(REPORT_OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(report_data, f, indent=2, ensure_ascii=False)
-    print(f"[INFO] Báo cáo chi tiết đã được lưu tại: {REPORT_OUTPUT_FILE}\n")
+    with open(DAILY_REPORT_OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(report_data, f, indent=2, ensure_ascii=False)
+    print(f"[INFO] Báo cáo chi tiết đã được lưu tại: {REPORT_OUTPUT_FILE}")
+    print(f"[INFO] Báo cáo theo ngày đã được lưu tại: {DAILY_REPORT_OUTPUT_FILE}\n")
 
 if __name__ == "__main__":
     data = load_mapreduce_results(RESULTS_FILE)
