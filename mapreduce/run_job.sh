@@ -52,7 +52,12 @@ hdfs dfs -rm -r -f "$HDFS_OUTPUT" || true
 
 # 3. Chạy Hadoop Streaming Job
 echo "[INFO] Submit MapReduce Job lên YARN/Hadoop cluster..."
+export HADOOP_CLASSPATH=$("${HADOOP_HOME}/bin/hadoop" classpath 2>/dev/null || true)
+
 hadoop jar "$STREAMING_JAR" \
+    -D yarn.app.mapreduce.am.env="HADOOP_MAPRED_HOME=${HADOOP_HOME}" \
+    -D mapreduce.map.env="HADOOP_MAPRED_HOME=${HADOOP_HOME}" \
+    -D mapreduce.reduce.env="HADOOP_MAPRED_HOME=${HADOOP_HOME}" \
     -files "${SCRIPT_DIR}/mapper.py,${SCRIPT_DIR}/reducer.py" \
     -mapper "python3 mapper.py" \
     -reducer "python3 reducer.py" \
