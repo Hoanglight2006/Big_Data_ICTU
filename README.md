@@ -81,25 +81,34 @@ Kết quả báo cáo `data/anomaly_report.json` và `data/mapreduce_results.txt
 
 ### Cách 2: Chạy Trực Tiếp Trên Máy Ảo Ubuntu / Linux Có Sẵn Hadoop
 
-#### Chạy tự động 1 lệnh duy nhất:
+#### Chạy tự động 1 lệnh duy nhất (Toàn bộ 6 bước):
 ```bash
-bash run_pipeline.sh 2024-01-15
+# Mặc định tự động lấy ngày hôm nay theo thời gian thực:
+bash run_pipeline.sh
+
+# (Tùy chọn) Truyền ngày cụ thể nếu muốn phân tích lại ngày trong quá khứ:
+# bash run_pipeline.sh 2026-10-01
 ```
 
-#### Hoặc chạy thủ công từng bước:
-1. **Sinh dữ liệu log ngày hôm trước (kèm kịch bản tấn công lúc 15:00):**
+#### Hoặc chạy thủ công từng bước theo phân công:
+1. **[Đặng Văn Vinh] Sinh dữ liệu log (kèm kịch bản tấn công lúc 15:00):**
    ```bash
    python3 data/generate_logs.py
+   # Hoặc chế độ continuous stream trực tiếp: python3 data/generate_logs.py --continuous
    ```
-2. **Nạp dữ liệu vào HDFS phân vùng theo ngày:**
+2. **[Đặng Văn Vinh] Nạp dữ liệu vào HDFS phân vùng theo ngày:**
    ```bash
    python3 flume/ingest_to_hdfs.py
    ```
-3. **Thực thi Hadoop MapReduce Streaming:**
+3. **[Nông Minh Trí & Triệu Văn Huy] Tiền xử lý, lọc rác & chuẩn hóa dữ liệu:**
    ```bash
-   bash mapreduce/run_job.sh 2024-01-15
+   python3 preprocessing/cleaner.py
    ```
-4. **Phân tích và xuất báo cáo bất thường:**
+4. **[Dương Đình Hoàng] Thực thi Hadoop MapReduce Streaming phân tán:**
+   ```bash
+   bash mapreduce/run_job.sh
+   ```
+5. **[Dương Đình Hoàng] Phân tích bất thường và xuất Daily Anomaly Report:**
    ```bash
    python3 anomaly/detector.py
    ```
