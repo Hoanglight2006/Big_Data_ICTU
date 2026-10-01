@@ -14,7 +14,7 @@ import subprocess
 import glob
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config.settings import LOG_DATE, HDFS_INPUT_DIR, SPOOL_DIR, OUTPUT_FILE
+from config.settings import LOG_DATE, HDFS_RAW_DIR, SPOOL_DIR, OUTPUT_FILE
 
 def run_command(cmd):
     """Thực thi lệnh shell và in log."""
@@ -31,7 +31,7 @@ def main():
     print("==========================================================")
     print(" [INFO] INGESTION: NAP DU LIEU LOG VAO HDFS")
     print(f" Ngay phan tich : {LOG_DATE}")
-    print(f" HDFS Input Dir : {HDFS_INPUT_DIR}")
+    print(f" HDFS Raw Dir   : {HDFS_RAW_DIR}")
     print(f" Local Spool Dir: {SPOOL_DIR}")
     print("==========================================================")
 
@@ -39,8 +39,8 @@ def main():
     run_command(["hdfs", "dfsadmin", "-safemode", "leave"])
 
     # 1. Tạo thư mục trên HDFS
-    print(f"\n[1/3] Tao thu muc tren HDFS: {HDFS_INPUT_DIR}")
-    run_command(["hdfs", "dfs", "-mkdir", "-p", HDFS_INPUT_DIR])
+    print(f"\n[1/3] Tao thu muc tren HDFS: {HDFS_RAW_DIR}")
+    run_command(["hdfs", "dfs", "-mkdir", "-p", HDFS_RAW_DIR])
 
     # 2. Tìm file log trong spool dir
     log_files = glob.glob(os.path.join(SPOOL_DIR, f"web_access_{LOG_DATE}.log"))
@@ -57,12 +57,12 @@ def main():
         sys.exit(1)
 
     target_file = log_files[0]
-    print(f"\n[2/3] Nap file log [{target_file}] len HDFS [{HDFS_INPUT_DIR}]...")
-    success = run_command(["hdfs", "dfs", "-put", "-f", target_file, f"{HDFS_INPUT_DIR}/access.log"])
+    print(f"\n[2/3] Nap file log [{target_file}] len HDFS [{HDFS_RAW_DIR}]...")
+    success = run_command(["hdfs", "dfs", "-put", "-f", target_file, f"{HDFS_RAW_DIR}/access.log"])
 
     if success:
         print(f"\n[3/3] [INFO] Nap du lieu vao HDFS thanh cong.")
-        run_command(["hdfs", "dfs", "-ls", HDFS_INPUT_DIR])
+        run_command(["hdfs", "dfs", "-ls", HDFS_RAW_DIR])
     else:
         print(f"\n[3/3] [ERROR] Nap du lieu vao HDFS that bai. Hay kiem tra dich vu Hadoop.")
         sys.exit(1)

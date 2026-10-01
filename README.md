@@ -16,24 +16,30 @@ Hệ thống hoạt động theo mô hình **Batch Processing ngoại tuyến (O
 
 ```text
 [Web Server Logs / Generator] (Đặng Văn Vinh)
-       │ (Sinh log liên tục hoặc 50,000 logs/24h)
+       │ (Sinh 50,000 logs/24h)
        ▼
- [Apache Flume Agent] (Đặng Văn Vinh)
-       │ (Tự động nạp và phân vùng động theo ngày)
+ [Apache Flume Ingestion] (Đặng Văn Vinh)
+       │ (Nạp trực tiếp vào HDFS Raw Zone)
        ▼
-[Hadoop HDFS Storage] (/data/logs/YYYY-MM-DD/access.log)
+[HDFS Raw Zone] (/data/raw/YYYY-MM-DD/access.log)
        │
        ▼
-[Data Preprocessing & Cleaning] (Nông Minh Trí & Triệu Văn Huy)
-       │ (Lọc log hỏng, kiểm tra IPv4, chuẩn hóa dữ liệu sạch)
+[YARN Preprocessing Job] (Nông Minh Trí & Triệu Văn Huy)
+       │ (Map-only Streaming lọc rác & chuẩn hóa trên YARN)
        ▼
-[Hadoop Streaming MapReduce] (Dương Đình Hoàng - Leader)
-       │ (Tính toán phân tán trên YARN Cluster)
-       ▼
- [Thống Kê Tổng Hợp] (data/mapreduce_results.txt)
+[HDFS Cleaned Zone] (/data/cleaned/YYYY-MM-DD/part-*)
        │
        ▼
-[Rule-based Anomaly Detector] (Dương Đình Hoàng - Leader) ──► [Daily Anomaly Report]
+[YARN MapReduce Aggregation] (Dương Đình Hoàng - Leader)
+       │ (Tính toán phân tán trên cụm máy chủ YARN)
+       ▼
+[HDFS Output Zone] (/data/output/YYYY-MM-DD/part-*)
+       │
+       ▼
+[Rule-based Anomaly Detector] (Dương Đình Hoàng - Leader)
+       │ (Phân tích trực tiếp từ HDFS stream)
+       ▼
+[HDFS Reports Zone] (/data/reports/YYYY-MM-DD/anomaly_report.json)
 ```
 
 ---
@@ -45,13 +51,13 @@ log-simulation/
 ├── config/             # Cấu hình trung tâm (HDFS paths, thresholds, dynamic JARs)
 ├── data/               # Module sinh log web server (Đặng Văn Vinh)
 ├── flume/              # Cấu hình Apache Flume Agent nạp HDFS & Ingestion Runner
-├── preprocessing/      # Tiền xử lý, lọc rác & làm sạch dữ liệu (Nông Minh Trí & Triệu Văn Huy)
-├── mapreduce/          # Hadoop Streaming Mapper & Reducer (Dương Đình Hoàng)
-├── anomaly/            # Bộ lọc 6 quy tắc phát hiện bất thường & báo cáo (Dương Đình Hoàng)
+├── preprocessing/      # Tiền xử lý phân tán Map-only trên YARN (Nông Minh Trí & Triệu Văn Huy)
+├── mapreduce/          # Hadoop Streaming Mapper & Reducer trên YARN (Dương Đình Hoàng)
+├── anomaly/            # Bộ lọc 6 quy tắc phát hiện bất thường & xuất báo cáo HDFS (Dương Đình Hoàng)
 ├── Dockerfile          # Docker image đóng gói ứng dụng pipeline & Hadoop client
 ├── docker-compose.yml  # Cấu hình cụm Hadoop (HDFS, YARN) và Pipeline Runner
 ├── hadoop.env          # Biến môi trường cho cụm Hadoop
-├── run_pipeline.sh     # Script chạy tự động toàn bộ pipeline
+├── run_pipeline.sh     # Script chạy tự động toàn bộ pipeline trên YARN & HDFS
 └── README.md           # Hướng dẫn chi tiết
 ```
 
@@ -75,13 +81,13 @@ docker logs -f log-pipeline-runner
 # - YARN Resource Manager: http://localhost:8088
 ```
 
-Kết quả báo cáo `data/anomaly_report.json` và `data/mapreduce_results.txt` được lưu tại thư mục `data/` trên máy host qua volume mount.
+Dữ liệu xử lý được lưu trữ tập trung trên HDFS, không tải file trung gian về máy host.
 
 ---
 
 ### Cách 2: Chạy trực tiếp trên máy ảo Ubuntu / Linux đã cấu hình Hadoop
 
-#### Chạy toàn bộ pipeline (6 bước):
+#### Chạy toàn bộ pipeline tự động (6 bước):
 ```bash
 # Mặc định lấy ngày hiện tại:
 bash run_pipeline.sh
@@ -91,24 +97,23 @@ bash run_pipeline.sh
 ```
 
 #### Hoặc chạy thủ công từng bước theo phân công:
-1. **[Đặng Văn Vinh] Sinh dữ liệu log (kèm kịch bản tấn công lúc 15:00):**
+1. **[Đặng Văn Vinh] Sinh dữ liệu log:**
    ```bash
    python3 data/generate_logs.py
-   # Hoặc chế độ continuous stream trực tiếp: python3 data/generate_logs.py --continuous
    ```
-2. **[Đặng Văn Vinh] Nạp dữ liệu vào HDFS phân vùng theo ngày:**
+2. **[Đặng Văn Vinh] Nạp dữ liệu vào HDFS Raw Zone:**
    ```bash
    python3 flume/ingest_to_hdfs.py
    ```
-3. **[Nông Minh Trí & Triệu Văn Huy] Tiền xử lý, lọc rác & chuẩn hóa dữ liệu:**
+3. **[Nông Minh Trí & Triệu Văn Huy] Tiền xử lý Map-only Job trên YARN:**
    ```bash
-   python3 preprocessing/cleaner.py
+   bash preprocessing/run_cleaner.sh
    ```
-4. **[Dương Đình Hoàng] Thực thi Hadoop MapReduce Streaming phân tán:**
+4. **[Dương Đình Hoàng] MapReduce Aggregation Job trên YARN:**
    ```bash
    bash mapreduce/run_job.sh
    ```
-5. **[Dương Đình Hoàng] Phân tích bất thường và xuất Daily Anomaly Report:**
+5. **[Dương Đình Hoàng] Phát hiện bất thường từ HDFS stream:**
    ```bash
    python3 anomaly/detector.py
    ```

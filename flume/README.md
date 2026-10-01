@@ -12,9 +12,9 @@
     - **Source (`r1`):** `spooldir` — Tự động theo dõi thư mục `data/spool/`. Khi có file log mới của ngày hôm trước được xuất ra, Flume tự động đọc dữ liệu.
     - **Interceptor (`i1`):** `timestamp` — Gắn timestamp vào từng sự kiện log để HDFS Sink phân vùng thư mục động theo `%Y-%m-%d`.
     - **Channel (`c1`):** `memory` — Bộ đệm trung gian trong RAM để đảm bảo tốc độ cao.
-    - **Sink (`k1`):** `hdfs` — Ghi luồng log trực tiếp vào hệ thống file phân tán tại `hdfs://localhost:9000/data/logs/%Y-%m-%d/`.
+    - **Sink (`k1`):** `hdfs` — Ghi luồng log trực tiếp vào hệ thống file phân tán tại `hdfs://localhost:9000/data/raw/%Y-%m-%d/`.
 - **`ingest_to_hdfs.py`**:
-  - Script tự động hóa việc đưa file log vào phân vùng HDFS `/data/logs/<LOG_DATE>/access.log`.
+  - Script tự động hóa việc đưa file log vào phân vùng HDFS `/data/raw/<LOG_DATE>/access.log`.
   - Hỗ trợ chạy kiểm thử tự động (CI/CD hoặc 1-click test) độc lập khi môi trường chưa khởi động daemon Flume.
 
 ---

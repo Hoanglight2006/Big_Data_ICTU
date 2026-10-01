@@ -10,13 +10,18 @@ from datetime import datetime
 TODAY_STR = datetime.now().strftime("%Y-%m-%d")
 LOG_DATE = os.getenv("LOG_DATE", TODAY_STR)
 
-# --- HDFS & Hadoop ---
+# --- HDFS & Hadoop Cluster Paths ---
 DEFAULT_HADOOP = os.path.expanduser("~/hadoop-3.2.1")
 HADOOP_HOME = os.getenv("HADOOP_HOME", DEFAULT_HADOOP)
-HDFS_BASE_DIR = os.getenv("HDFS_BASE_DIR", "/data/logs")
-HDFS_INPUT_DIR = f"{HDFS_BASE_DIR}/{LOG_DATE}"         # Thư mục HDFS theo ngày
-HDFS_OUTPUT_BASE_DIR = os.getenv("HDFS_OUTPUT_BASE_DIR", "/data/output")
-HDFS_OUTPUT_DIR = f"{HDFS_OUTPUT_BASE_DIR}/{LOG_DATE}" # Thư mục kết quả MapReduce theo ngày
+
+# Cấu trúc lưu trữ phân vùng theo ngày trên HDFS (Không tải file về máy)
+HDFS_RAW_DIR = os.getenv("HDFS_RAW_DIR", f"/data/raw/{LOG_DATE}")             # Log thô từ Flume
+HDFS_CLEANED_DIR = os.getenv("HDFS_CLEANED_DIR", f"/data/cleaned/{LOG_DATE}") # Log sạch sau khi YARN tiền xử lý
+HDFS_OUTPUT_DIR = os.getenv("HDFS_OUTPUT_DIR", f"/data/output/{LOG_DATE}")   # Kết quả MapReduce tổng hợp
+HDFS_REPORT_DIR = os.getenv("HDFS_REPORT_DIR", f"/data/reports/{LOG_DATE}")   # Báo cáo bất thường trên HDFS
+
+# Tương thích ngược
+HDFS_INPUT_DIR = HDFS_RAW_DIR
 
 # Đường dẫn thư mục Spool cho Flume
 SPOOL_DIR = os.getenv("SPOOL_DIR", "data/spool")

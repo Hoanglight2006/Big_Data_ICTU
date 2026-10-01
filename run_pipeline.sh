@@ -76,30 +76,34 @@ echo -e "\n[2/6] [Dang Van Vinh] Sinh du lieu log web server cho ngay $LOG_DATE.
 python3 data/generate_logs.py
 
 # -----------------------------------------------------------------------------
-# BUOC 3: INGESTION VAO HDFS THEO NGAY (DANG VAN VINH - FLUME)
+# BUOC 3: INGESTION VAO HDFS RAW ZONE (DANG VAN VINH - FLUME)
 # -----------------------------------------------------------------------------
-echo -e "\n[3/6] [Dang Van Vinh] Flume Ingestion nap du lieu vao HDFS (/data/logs/$LOG_DATE)..."
+echo -e "\n[3/6] [Dang Van Vinh] Flume Ingestion nap du lieu vao HDFS (/data/raw/$LOG_DATE)..."
 python3 flume/ingest_to_hdfs.py
 
 # -----------------------------------------------------------------------------
-# BUOC 4: LAM SACH & CHUAN HOA DU LIEU (NONG MINH TRI & TRIEU VAN HUY)
+# BUOC 4: TIEN XU LY & LAM SACH PHAN TAN TREN YARN (NONG MINH TRI & TRIEU VAN HUY)
 # -----------------------------------------------------------------------------
-echo -e "\n[4/6] [Nong Minh Tri & Trieu Van Huy] Preprocessing, loc loi va chuan hoa du lieu..."
-python3 preprocessing/cleaner.py
+echo -e "\n[4/6] [Nong Minh Tri & Trieu Van Huy] Preprocessing Map-only Job tren YARN (/data/cleaned/$LOG_DATE)..."
+bash preprocessing/run_cleaner.sh "$LOG_DATE"
 
 # -----------------------------------------------------------------------------
-# BUOC 5: CHAY HADOOP STREAMING MAPREDUCE (DUONG DINH HOANG)
+# BUOC 5: TONG HOP MAPREDUCE TREN YARN (DUONG DINH HOANG)
 # -----------------------------------------------------------------------------
-echo -e "\n[5/6] [Duong Dinh Hoang] Thuc thi Hadoop MapReduce Streaming tren YARN..."
+echo -e "\n[5/6] [Duong Dinh Hoang] Thuc thi Hadoop MapReduce Streaming tren YARN (/data/output/$LOG_DATE)..."
 bash mapreduce/run_job.sh "$LOG_DATE"
 
 # -----------------------------------------------------------------------------
-# BUOC 6: PHAN TICH BAT THUONG & XUAT BAO CAO (DUONG DINH HOANG)
+# BUOC 6: PHAN TICH BAT THUONG & LUU BAO CAO HDFS (DUONG DINH HOANG)
 # -----------------------------------------------------------------------------
-echo -e "\n[6/6] [Duong Dinh Hoang] Rule-based Anomaly Detection va xuat bao cao..."
-python3 anomaly/detector.py
+echo -e "\n[6/6] [Duong Dinh Hoang] Rule-based Anomaly Detection truc tiep tu HDFS stream..."
+python3 anomaly/detector.py --date "$LOG_DATE"
 
 echo "=========================================================="
-echo " [INFO] HOAN TAT TOAN BO PIPELINE"
-echo " Bao cao da duoc luu tai: data/anomaly_report.json"
+echo " [INFO] HOAN TAT TOAN BO PIPELINE PHAN TICH LOG (YARN & HDFS)"
+echo " Cụm dữ liệu HDFS theo ngày $LOG_DATE:"
+echo "   - Raw Data    : /data/raw/$LOG_DATE"
+echo "   - Cleaned Data: /data/cleaned/$LOG_DATE"
+echo "   - Aggregation : /data/output/$LOG_DATE"
+echo "   - Report      : /data/reports/$LOG_DATE"
 echo "=========================================================="

@@ -5,11 +5,12 @@
 
 ---
 
-## 1. Vai Trò & Nguyên Lý
+## 1. Vai Trò & Nguyên Lý Phân Tán Trên YARN
 
-Thực thi tính toán phân tán quy mô lớn trên cụm **Hadoop YARN** thông qua cơ chế **Hadoop Streaming**:
-- Dữ liệu đầu vào: Thư mục log phân vùng theo ngày trên HDFS (`/data/logs/<LOG_DATE>/`).
-- Dữ liệu đầu ra: Kết quả tổng hợp chỉ số lưu trên HDFS (`/data/output/<LOG_DATE>/`) và tự động kéo về `data/mapreduce_results.txt`.
+Thực thi tính toán phân tán trên cụm **Hadoop YARN** thông qua cơ chế **Hadoop Streaming**:
+- **Dữ liệu đầu vào:** Thư mục log đã được làm sạch trên HDFS (`/data/cleaned/<LOG_DATE>/`).
+- **Dữ liệu đầu ra:** Kết quả tổng hợp chỉ số lưu trực tiếp trên HDFS (`/data/output/<LOG_DATE>/part-*`).
+- **Lưu trữ trên cụm:** Dữ liệu được đọc và ghi trực tiếp trên HDFS, không tải file về máy host.
 
 ---
 
@@ -17,7 +18,7 @@ Thực thi tính toán phân tán quy mô lớn trên cụm **Hadoop YARN** thô
 
 - **`mapper.py`**:
   - Nhận từng dòng log sạch từ HDFS qua `sys.stdin`.
-  - Bóc tách các trường: Giờ (`hour`), Địa chỉ IP (`ip`), Trạng thái (`status_code`), Mức log (`log_level`), Độ trễ (`response_time_ms`), Đường dẫn (`endpoint`).
+  - Bóc tách các trường: Giờ (`hour`), Địa chỉ IP (`ip`), Trạng thái (`status_code`), Mức log (`level`), Độ trễ (`response_time_ms`), Đường dẫn (`endpoint`).
   - Xuất các cặp Key-Value:
     - `hour_req:<hour>\t1`
     - `hour_err:<hour>\t1`
@@ -32,9 +33,17 @@ Thực thi tính toán phân tán quy mô lớn trên cụm **Hadoop YARN** thô
     - Đếm tổng số lượt request, lỗi ERROR, lỗi 5xx trong từng giờ.
     - Tính thời gian phản hồi trung bình (Average Response Time) cho từng giờ.
     - Đếm số lượt request của từng địa chỉ IP trong từng giờ.
-  - Xuất kết quả tổng hợp ra HDFS.
+  - Xuất kết quả tổng hợp trực tiếp ra HDFS (`/data/output/<LOG_DATE>/part-*`).
 
 - **`run_job.sh`**:
-  - Shell script submit MapReduce Job lên Hadoop YARN.
-  - Tự động tìm kiếm file `hadoop-streaming*.jar` linh hoạt.
-  - Hỗ trợ tham số ngày phân tích: `bash mapreduce/run_job.sh 2026-10-01`.
+  - Shell script submit MapReduce Job lên cụm Hadoop YARN.
+  - Đọc từ HDFS Cleaned, ghi ra HDFS Output, không kéo file về máy.
+  - Hỗ trợ tham số ngày phân tích: `bash mapreduce/run_job.sh [YYYY-MM-DD]`.
+
+---
+
+## 3. Cách Sử Dụng
+
+```bash
+bash mapreduce/run_job.sh 2026-10-01
+```

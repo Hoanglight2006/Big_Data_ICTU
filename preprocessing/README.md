@@ -5,31 +5,47 @@
 
 ---
 
-## 1. Vai Trò & Mục Tiêu
+## 1. Vai Trò & Nguyên Lý Phân Tán Trên YARN
 
-Trong các luồng Big Data thực tế, dữ liệu thô (raw logs) từ Web Server thu thập qua Flume thường xuyên xuất hiện:
+Trong luồng Big Data thực tế, dữ liệu thô (raw logs) từ Web Server thu thập qua Flume thường xuyên xuất hiện các vấn đề:
 - Dòng log bị cắt đứt do nghẽn mạng (malformed JSON).
 - Trường dữ liệu bị thiếu hoặc mang giá trị `null`.
-- Địa chỉ IP không hợp lệ hoặc bị chèn ký tự lạ.
-- Status code hoặc response time bị sai lệch kiểu dữ liệu.
+- Địa chỉ IP không hợp lệ hoặc chèn ký tự lạ.
+- Kiểu dữ liệu không đồng nhất (status code, response time).
 
-Module này do **Nông Minh Trí và Triệu Văn Huy** phụ trách nhằm loại bỏ các bản ghi lỗi cú pháp hoặc thiếu trường thông tin, chuẩn hóa cấu trúc đầu vào cho bước phân tích MapReduce tiếp theo.
+Toàn bộ quá trình tiền xử lý được thực thi phân tán trên cụm **Hadoop YARN** (Map-only Job), đọc trực tiếp từ phân vùng HDFS Raw và ghi ra HDFS Cleaned mà **không tải file trung gian về máy host**:
+- **HDFS Input (Raw Zone):** `/data/raw/<LOG_DATE>/access.log`
+- **HDFS Output (Clean Zone):** `/data/cleaned/<LOG_DATE>/part-*`
 
 ---
 
 ## 2. Các Tệp Tin
 
+- **`cleaner_mapper.py`**:
+  - Script Mapper nhận từng dòng log thô qua `sys.stdin` trên các container của worker node.
+  - Xác thực tính toàn vẹn cú pháp JSON.
+  - Kiểm tra đầy đủ các trường bắt buộc (`timestamp`, `ip`, `status_code`, `endpoint`, `response_time_ms`, `level`).
+  - Xác thực định dạng địa chỉ IPv4.
+  - Tăng Hadoop Counter ghi nhận chất lượng dữ liệu (`DataQuality,Corrupted_JSON`, `DataQuality,Invalid_IPv4`).
+  - Ghi bản ghi sạch đã chuẩn hóa ra `sys.stdout` trực tiếp vào HDFS.
+
+- **`run_cleaner.sh`**:
+  - Script submit Map-only Job (`-numReduceTasks 0`) lên YARN ResourceManager.
+  - Tham số ngày phân tích: `bash preprocessing/run_cleaner.sh [YYYY-MM-DD]`.
+
 - **`cleaner.py`**:
-  - Quét từng dòng log thô.
-  - Lọc lỗi cú pháp JSON và các trường bắt buộc (`timestamp`, `ip`, `status_code`, `endpoint`, `response_time_ms`, `level`).
-  - Xác thực chuẩn IPv4 hợp lệ.
-  - Phân tách log rác vào `data/corrupted_logs.txt`.
-  - Xuất dữ liệu sạch đạt chuẩn vào `data/cleaned_logs.json`.
+  - Script chạy độc lập (standalone) hỗ trợ kiểm thử cục bộ khi chưa bật cụm Hadoop.
 
 ---
 
 ## 3. Cách Sử Dụng
 
+### Chạy phân tán trên cụm YARN (Khuyến nghị):
+```bash
+bash preprocessing/run_cleaner.sh 2026-10-01
+```
+
+### Chạy kiểm thử offline (Không cần cụm Hadoop):
 ```bash
 python3 preprocessing/cleaner.py data/fake_logs.json
 ```
