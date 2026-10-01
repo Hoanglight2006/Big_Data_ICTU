@@ -9,7 +9,7 @@ set -e
 LOG_DATE="${1:-${LOG_DATE:-$(date +%F)}}"
 
 # Xác định HADOOP_HOME linh hoạt
-HADOOP_HOME="${HADOOP_HOME:-/home/hoang/hadoop-3.2.1}"
+HADOOP_HOME="${HADOOP_HOME:-$HOME/hadoop-3.2.1}"
 
 # Tự động tìm Streaming JAR nếu chưa được chỉ định
 if [ -z "$STREAMING_JAR" ]; then

@@ -19,7 +19,7 @@ fi
 
 # Thiết lập các biến môi trường (Mặc định lấy ngày hôm nay: YYYY-MM-DD)
 export LOG_DATE="${1:-${LOG_DATE:-$(date +%F)}}"
-export HADOOP_HOME="${HADOOP_HOME:-/home/hoang/hadoop-3.2.1}"
+export HADOOP_HOME="${HADOOP_HOME:-$HOME/hadoop-3.2.1}"
 
 echo "=========================================================="
 echo " 🚀 BẮT ĐẦU PIPELINE PHÂN TÍCH LOG BATCH THEO NGÀY (SIC)"
@@ -36,15 +36,24 @@ echo -e "\n[1/6] Kiểm tra dịch vụ Hadoop (HDFS & YARN)..."
 if hdfs dfs -ls / &> /dev/null; then
     echo "  ✅ Cụm Hadoop (HDFS) đang hoạt động và sẵn sàng nhận kết nối!"
 else
-    echo "  ⚠️ Chưa kết nối được HDFS -> Đang thử khởi động Hadoop nội bộ..."
+    CURRENT_USER=$(whoami)
+    echo "  ⚠️ Chưa kết nối được HDFS -> Đang khởi động Hadoop với quyền người dùng: $CURRENT_USER..."
     if [ -f "${HADOOP_HOME}/sbin/start-all.sh" ]; then
-        export HDFS_NAMENODE_USER=root
-        export HDFS_DATANODE_USER=root
-        export HDFS_SECONDARYNAMENODE_USER=root
-        export YARN_RESOURCEMANAGER_USER=root
-        export YARN_NODEMANAGER_USER=root
+        export HDFS_NAMENODE_USER=$CURRENT_USER
+        export HDFS_DATANODE_USER=$CURRENT_USER
+        export HDFS_SECONDARYNAMENODE_USER=$CURRENT_USER
+        export YARN_RESOURCEMANAGER_USER=$CURRENT_USER
+        export YARN_NODEMANAGER_USER=$CURRENT_USER
         "${HADOOP_HOME}/sbin/start-all.sh" || true
-        sleep 5
+        
+        echo "  Đang đợi các tiến trình Hadoop khởi động ổn định..."
+        for i in {1..15}; do
+            if hdfs dfs -ls / &> /dev/null; then
+                echo "  ✅ Hadoop đã khởi động thành công và sẵn sàng nhận kết nối!"
+                break
+            fi
+            sleep 2
+        done
     fi
 fi
 

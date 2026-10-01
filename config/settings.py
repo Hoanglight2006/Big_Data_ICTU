@@ -11,7 +11,8 @@ TODAY_STR = datetime.now().strftime("%Y-%m-%d")
 LOG_DATE = os.getenv("LOG_DATE", TODAY_STR)
 
 # --- HDFS & Hadoop ---
-HADOOP_HOME = os.getenv("HADOOP_HOME", "/home/hoang/hadoop-3.2.1")
+DEFAULT_HADOOP = os.path.expanduser("~/hadoop-3.2.1")
+HADOOP_HOME = os.getenv("HADOOP_HOME", DEFAULT_HADOOP)
 HDFS_BASE_DIR = os.getenv("HDFS_BASE_DIR", "/data/logs")
 HDFS_INPUT_DIR = f"{HDFS_BASE_DIR}/{LOG_DATE}"         # Thư mục HDFS theo ngày
 HDFS_OUTPUT_BASE_DIR = os.getenv("HDFS_OUTPUT_BASE_DIR", "/data/output")
