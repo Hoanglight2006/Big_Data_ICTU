@@ -148,15 +148,15 @@ def detect_anomalies(data, date_str=LOG_DATE):
     anomalies = []
 
     print("\n" + "=" * 80)
-    print("                BÁO CÁO PHÁT HIỆN BẤT THƯỜNG                ")
+    print("                        BÁO CÁO PHÁT HIỆN BẤT THƯỜNG                        ")
     print("=" * 80)
-    print(f"Thống kê Traffic theo giờ: Mean = {mean_req:.1f} reqs/h | StdDev = {std_req:.1f}")
-    print(f"   Ngưỡng Cảnh Báo (WARNING):  > {warn_threshold:.1f} reqs/h (Mean + 2*Std)")
-    print(f"   Ngưỡng Nghiêm Trọng (CRIT): > {crit_threshold:.1f} reqs/h (Mean + 3*Std)")
+    print(f"Lưu lượng trung bình mỗi giờ: {mean_req:.0f} yêu cầu/giờ (Độ lệch: {std_req:.0f})")
+    print(f"   - Mức cảnh báo (cao bất thường): > {warn_threshold:.0f} yêu cầu/giờ")
+    print(f"   - Mức báo động (tăng đột biến):   > {crit_threshold:.0f} yêu cầu/giờ")
     print("-" * 80)
 
     # Đánh giá theo từng giờ (00 -> 23)
-    print(f"{'Giờ':<6} | {'Tổng Req':<10} | {'ERROR (%)':<12} | {'5xx (%)':<12} | {'Avg Resp (ms)':<15} | {'Trạng thái'}")
+    print(f"{'Giờ':<6} | {'Tổng yêu cầu':<12} | {'Log lỗi':<14} | {'Lỗi máy chủ 5xx':<17} | {'Thời gian xử lý':<17} | {'Đánh giá'}")
     print("-" * 80)
 
     for h_int in range(24):
@@ -173,84 +173,87 @@ def detect_anomalies(data, date_str=LOG_DATE):
 
         # Rule 1: Traffic Spike
         if total >= crit_threshold:
-            status_flags.append("CRITICAL: Traffic Spike")
+            status_flags.append("Truy cập tăng vọt")
             anomalies.append({
                 "rule": "R01_TRAFFIC_SPIKE",
                 "severity": "CRITICAL",
                 "hour": h,
-                "message": f"Traffic giờ {h}:00 đạt {total:,} requests (vượt ngưỡng Critical {crit_threshold:.1f})"
+                "message": f"Lưu lượng giờ {h}:00 đạt {total:,} yêu cầu (tăng đột biến so với bình thường)"
             })
         elif total >= warn_threshold:
-            status_flags.append("WARNING: High Traffic")
+            status_flags.append("Lưu lượng cao")
             anomalies.append({
                 "rule": "R01_TRAFFIC_SPIKE",
                 "severity": "WARNING",
                 "hour": h,
-                "message": f"Traffic giờ {h}:00 đạt {total:,} requests (vượt ngưỡng Warning {warn_threshold:.1f})"
+                "message": f"Lưu lượng giờ {h}:00 đạt {total:,} yêu cầu (vượt ngưỡng cảnh báo)"
             })
 
         # Rule 2: High Error Rate
         if err_rate >= MAX_5XX_RATE_PERCENT:
-            status_flags.append("HIGH_ERROR")
+            status_flags.append("Nhiều log lỗi")
             anomalies.append({
                 "rule": "R02_ERROR_RATE",
                 "severity": "CRITICAL" if err_rate > 10 else "WARNING",
                 "hour": h,
-                "message": f"Giờ {h}:00 có {err_count} lỗi ({err_rate:.1f}% tổng traffic)"
+                "message": f"Giờ {h}:00 có {err_count} log lỗi ({err_rate:.1f}% tổng yêu cầu)"
             })
 
         # Rule 3: High 5xx Rate
         if r5xx_rate >= MAX_5XX_RATE_PERCENT:
-            status_flags.append("HIGH_5XX")
+            status_flags.append("Lỗi máy chủ 5xx")
             anomalies.append({
                 "rule": "R03_HTTP_5XX_RATE",
                 "severity": "CRITICAL",
                 "hour": h,
-                "message": f"Giờ {h}:00 có {c5xx} lỗi 5xx Server Error ({r5xx_rate:.1f}%)"
+                "message": f"Giờ {h}:00 có {c5xx} lỗi hệ thống ({r5xx_rate:.1f}%)"
             })
 
         # Rule 5: Response Time
         if avg_resp >= MAX_RESPONSE_TIME_MS:
-            status_flags.append("SLOW_LATENCY")
+            status_flags.append("Xử lý chậm")
             anomalies.append({
                 "rule": "R05_RESPONSE_TIME",
                 "severity": "WARNING",
                 "hour": h,
-                "message": f"Response time TB giờ {h}:00 cao bất thường: {avg_resp:.1f}ms"
+                "message": f"Thời gian phản hồi giờ {h}:00 bị chậm: {avg_resp:.1f}ms"
             })
 
-        status_text = ", ".join(status_flags) if status_flags else "NORMAL"
-        badge = "[!] " if "CRITICAL" in status_text or "HIGH" in status_text else "    "
-        print(f"{badge}{h}:00  | {total:<10,} | {err_count} ({err_rate:4.1f}%)   | {c5xx} ({r5xx_rate:4.1f}%)   | {avg_resp:<15.1f} | {status_text}")
+        status_text = ", ".join(status_flags) if status_flags else "Bình thường"
+        badge = "[!] " if status_flags else "    "
+        err_str = f"{err_count} ({err_rate:4.1f}%)"
+        c5xx_str = f"{c5xx} ({r5xx_rate:4.1f}%)"
+        resp_str = f"{avg_resp:.1f} ms"
+        print(f"{badge}{h}:00  | {total:<12,} | {err_str:<14} | {c5xx_str:<17} | {resp_str:<17} | {status_text}")
 
     print("=" * 80)
 
     # Rule 4: IP Flood Detection
-    print("\nKiểm tra phát hiện tấn công / IP Flood (Ngưỡng > 1,000 req/h):")
+    print("\nKiểm tra dấu hiệu spam / gửi yêu cầu quá tải theo IP (Ngưỡng > 1.000 yêu cầu/giờ):")
     found_flood = False
     for h, ip_map in ip_reqs.items():
         for ip, count in ip_map.items():
             if count >= MAX_IP_REQUESTS_PER_HOUR:
                 found_flood = True
-                print(f"   [ALERT] IP: {ip:<15} | Giờ: {h}:00 | Số request: {count:,} reqs/h -> Co dau hieu IP Flood!")
+                print(f"   [CẢNH BÁO] IP: {ip:<15} | Giờ: {h}:00 | Gửi: {count:,} yêu cầu/giờ -> Có dấu hiệu spam hoặc phá hoại!")
                 anomalies.append({
                     "rule": "R04_IP_FLOOD",
                     "severity": "CRITICAL",
                     "hour": h,
                     "ip": ip,
-                    "message": f"IP {ip} gửi {count:,} request trong giờ {h}:00 (Vượt ngưỡng {MAX_IP_REQUESTS_PER_HOUR})"
+                    "message": f"IP {ip} gửi {count:,} yêu cầu trong giờ {h}:00 (Vượt ngưỡng {MAX_IP_REQUESTS_PER_HOUR})"
                 })
     if not found_flood:
-        print("   Không phát hiện IP nào vượt ngưỡng flood.")
+        print("   Không có IP nào gửi yêu cầu quá mức quy định.")
 
     # Rule 6: Top Endpoints gặp lỗi
-    print("\nTop endpoints gặp lỗi nhiều nhất:")
+    print("\nCác đường dẫn chức năng gặp lỗi nhiều nhất:")
     sorted_endpoints = sorted(endpoint_errs.items(), key=lambda x: x[1], reverse=True)[:5]
     for ep, count in sorted_endpoints:
-        print(f"   - {ep:<30}: {count:,} lỗi")
+        print(f"   - {ep:<30}: {count:,} lần lỗi")
 
     print("\n" + "=" * 80)
-    print(f"Tổng kết: Đã phát hiện {len(anomalies)} cảnh báo bất thường.")
+    print(f"Tổng kết: Đã phát hiện {len(anomalies)} dấu hiệu bất thường trong ngày.")
     print("=" * 80)
 
     # Cấu trúc báo cáo JSON

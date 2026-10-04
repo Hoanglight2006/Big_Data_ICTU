@@ -9,12 +9,14 @@
 
 - **`generate_logs.py`**:
   - Script mô phỏng máy chủ Web Server phát sinh nhật ký truy cập (Access Log) định dạng JSON.
-  - Tự động cấy (inject) kịch bản bất thường vào khung giờ **15:00 - 16:00**:
-    - IP Flood: `10.0.0.99` gửi hàng ngàn request liên tục.
-    - Ép tỉ lệ lỗi HTTP 500/503 tăng đột biến (>40%).
-    - Đẩy thời gian phản hồi (response time) tăng vọt (>4,000 ms).
+  - Tự động sinh dữ liệu quy mô lớn (từ 150.000 đến 180.000+ bản ghi cho 24 giờ).
+  - Tự động ngẫu nhiên hóa các kịch bản bất thường (không khóa cứng):
+    - Tự động chọn ngẫu nhiên 1 đến 2 khung giờ trong ngày có lưu lượng tăng vọt (Spike).
+    - Ngẫu nhiên sinh địa chỉ IP gửi yêu cầu quá tải (Spam / DDoS) vượt ngưỡng cho phép.
+    - Ép tỉ lệ lỗi HTTP 500/503 tăng cao và độ trễ phản hồi bị kéo dài.
+    - Chèn ngẫu nhiên khoảng 1% dữ liệu rác/hỏng (JSON lỗi cú pháp, IP sai định dạng, thiếu trường dữ liệu) để kiểm thử bộ lọc làm sạch của tầng tiền xử lý.
   - **Hỗ trợ 2 chế độ vận hành:**
-    1. **Chế độ Batch (Mặc định):** Sinh trọn vẹn 50,000 log của 24 giờ cho ngày hôm nay để nạp vào MapReduce xử lý theo lô.
+    1. **Chế độ Batch (Mặc định):** Sinh trọn vẹn tập dữ liệu lớn của 24 giờ để nạp vào MapReduce xử lý theo lô.
        ```bash
        python data/generate_logs.py
        ```

@@ -27,7 +27,7 @@ if hasattr(sys.stdout, "reconfigure"):
 # Thêm thư mục gốc vào Python path để import config
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.settings import (
-    LOG_DATE, TOTAL_LOGS, OUTPUT_FILE,
+    LOG_DATE, TOTAL_LOGS, OUTPUT_FILE, SPOOL_DIR,
     SERVICES, ENDPOINTS, HTTP_METHODS, STATUS_CODES,
     ANOMALY_START_HOUR, ANOMALY_END_HOUR, ANOMALY_IP
 )
@@ -37,25 +37,31 @@ from config.settings import (
 # BƯỚC 1: Định nghĩa phân phối traffic theo giờ
 # =============================================================================
 # traffic_weights[h] = tỉ lệ tương đối của traffic trong giờ h (0-23)
-# Tổng không cần = 1, chỉ cần tỉ lệ tương đối
-TRAFFIC_WEIGHTS = {
+# =============================================================================
+# BƯỚC 1: Định nghĩa phân phối traffic theo giờ có độ nhiễu ngẫu nhiên
+# =============================================================================
+BASE_TRAFFIC_WEIGHTS = {
      0: 0.5,   1: 0.3,   2: 0.2,   3: 0.2,   4: 0.2,   5: 0.3,
      6: 0.8,   7: 1.5,   8: 2.5,   9: 3.5,  10: 4.0,  11: 4.5,
-    12: 5.0,  13: 4.5,  14: 4.0,  15: 3.5,  16: 4.0,  17: 4.5,
+    12: 5.0,  13: 4.5,  14: 4.0,  15: 4.5,  16: 4.0,  17: 4.5,
     18: 5.0,  19: 4.5,  20: 3.5,  21: 2.5,  22: 1.5,  23: 1.0,
 }
 
 def get_logs_per_hour(total_logs):
-    """Phân phối total_logs vào 24 giờ theo traffic_weights."""
-    total_weight = sum(TRAFFIC_WEIGHTS.values())
+    """Phân phối total_logs vào 24 giờ với dao động ngẫu nhiên tự nhiên."""
+    # Thêm nhiễu ngẫu nhiên ±15% cho từng giờ để mỗi ngày có phân phối khác nhau
+    dynamic_weights = {
+        h: w * random.uniform(0.85, 1.20)
+        for h, w in BASE_TRAFFIC_WEIGHTS.items()
+    }
+    total_weight = sum(dynamic_weights.values())
     logs_per_hour = {}
     allocated = 0
-    hours = list(range(24))
-    for h in hours[:-1]:
-        count = int(total_logs * TRAFFIC_WEIGHTS[h] / total_weight)
+    for h in range(23):
+        count = int(total_logs * dynamic_weights[h] / total_weight)
         logs_per_hour[h] = count
         allocated += count
-    logs_per_hour[23] = total_logs - allocated  # phần còn lại vào giờ cuối
+    logs_per_hour[23] = max(0, total_logs - allocated)
     return logs_per_hour
 
 
@@ -64,7 +70,6 @@ def get_logs_per_hour(total_logs):
 # =============================================================================
 def make_normal_log(hour, minute, second, ip_pool):
     """Tạo 1 log entry ngẫu nhiên trong giờ 'hour'."""
-    # Tạo timestamp ISO 8601 UTC
     dt = datetime(
         *[int(x) for x in LOG_DATE.split("-")],
         hour, minute, second,
@@ -72,14 +77,12 @@ def make_normal_log(hour, minute, second, ip_pool):
     )
     timestamp = dt.isoformat()
 
-    # Chọn status code theo xác suất
     status_code = random.choices(
         list(STATUS_CODES.keys()),
         weights=list(STATUS_CODES.values()),
         k=1
     )[0]
 
-    # Level log dựa trên status code
     if status_code >= 500:
         level = "ERROR"
     elif status_code >= 400:
@@ -87,13 +90,12 @@ def make_normal_log(hour, minute, second, ip_pool):
     else:
         level = random.choices(["INFO", "DEBUG"], weights=[0.9, 0.1], k=1)[0]
 
-    # Response time: lỗi thường chậm hơn
     if status_code >= 500:
-        response_time = random.randint(500, 5000)
+        response_time = random.randint(400, 3000)
     elif status_code >= 400:
         response_time = random.randint(100, 800)
     else:
-        response_time = random.randint(10, 300)
+        response_time = random.randint(10, 350)
 
     endpoint = random.choice(ENDPOINTS)
     method = random.choice(HTTP_METHODS)
@@ -114,8 +116,8 @@ def make_normal_log(hour, minute, second, ip_pool):
 # =============================================================================
 # BƯỚC 3: Hàm tạo 1 log entry bất thường (anomaly)
 # =============================================================================
-def make_anomaly_log(hour, minute, second, is_flood_ip=False):
-    """Tạo 1 log bất thường: nhiều ERROR, 5xx, và IP flood."""
+def make_anomaly_log(hour, minute, second, flood_ip=None):
+    """Tạo 1 log bất thường: lỗi hệ thống, thời gian xử lý chậm, hoặc IP spam."""
     dt = datetime(
         *[int(x) for x in LOG_DATE.split("-")],
         hour, minute, second,
@@ -123,20 +125,17 @@ def make_anomaly_log(hour, minute, second, is_flood_ip=False):
     )
     timestamp = dt.isoformat()
 
-    # Anomaly: tỉ lệ lỗi cao hơn nhiều
     status_code = random.choices(
-        [200, 500, 503, 429],
-        weights=[0.3, 0.4, 0.2, 0.1],
+        [200, 500, 503, 429, 404],
+        weights=[0.25, 0.40, 0.20, 0.10, 0.05],
         k=1
     )[0]
 
     level = "ERROR" if status_code >= 500 else "WARN"
-    response_time = random.randint(2000, 10000)  # rất chậm
+    response_time = random.randint(2500, 9500)
 
-    # IP flood hoặc IP ngẫu nhiên
-    ip = ANOMALY_IP if is_flood_ip else f"192.168.{random.randint(1,10)}.{random.randint(1,254)}"
-
-    endpoint = random.choice(ENDPOINTS)
+    ip = flood_ip if flood_ip else f"192.168.{random.randint(1,10)}.{random.randint(1,254)}"
+    endpoint = random.choice(["/api/products/search", "/api/orders/create", "/api/payments/process", "/health"])
     method = random.choice(["GET", "POST"])
 
     return {
@@ -153,113 +152,162 @@ def make_anomaly_log(hour, minute, second, is_flood_ip=False):
 
 
 # =============================================================================
-# BƯỚC 4: Main — tạo toàn bộ log
+# BƯỚC 4: Hàm tạo bản ghi dữ liệu rác/hỏng (Corrupted Record Injection)
+# =============================================================================
+def make_corrupted_raw_line(hour, minute, second, ip_pool):
+    """Tạo 1 dòng dữ liệu rác/hỏng để kiểm thử tầng tiền xử lý cleaner_mapper.py."""
+    corrupt_type = random.choice(["malformed_json", "missing_field", "invalid_ip", "bad_datatype"])
+    dt = datetime(*[int(x) for x in LOG_DATE.split("-")], hour, minute, second, tzinfo=timezone.utc)
+    ts = dt.isoformat()
+
+    if corrupt_type == "malformed_json":
+        # JSON bị cắt cụt, vỡ cú pháp
+        return f'{{"timestamp": "{ts}", "ip": "{random.choice(ip_pool)}", "service": "api-gateway", "endpoint": "/api/products'
+    elif corrupt_type == "missing_field":
+        # Thiếu trường bắt buộc (thiếu status_code hoặc endpoint)
+        rec = {"timestamp": ts, "ip": random.choice(ip_pool), "level": "INFO", "response_time_ms": 120}
+        return json.dumps(rec)
+    elif corrupt_type == "invalid_ip":
+        # IP chứa ký tự lạ hoặc vượt dải 255
+        bad_ip = random.choice(["999.999.999.999", "192.168.1.abc", "not_an_ip", "300.1.2.3"])
+        rec = make_normal_log(hour, minute, second, [bad_ip])
+        return json.dumps(rec)
+    else:
+        # Kiểu dữ liệu sai: status_code là chuỗi chữ
+        rec = make_normal_log(hour, minute, second, ip_pool)
+        rec["status_code"] = "SERVER_ERROR"
+        return json.dumps(rec)
+
+
+# =============================================================================
+# BƯỚC 5: Main — Tạo toàn bộ tập dữ liệu lớn
 # =============================================================================
 def generate_logs():
-    print(f"[INFO] Bắt đầu tạo {TOTAL_LOGS:,} log entries cho ngày {LOG_DATE}...")
+    # 1. Tự động xác định số lượng log (tăng cường quy mô từ 150.000 đến 180.000)
+    actual_total_logs = TOTAL_LOGS if TOTAL_LOGS != 50000 else random.randint(150000, 180000)
+    print(f"[INFO] Bắt đầu sinh tập dữ liệu lớn: {actual_total_logs:,} bản ghi cho ngày {LOG_DATE}...")
 
-    # Pool IP bình thường (50 IP giả)
-    ip_pool = [f"203.{random.randint(100,200)}.{random.randint(0,255)}.{random.randint(1,254)}"
-               for _ in range(50)]
+    # 2. Ngẫu nhiên hóa khung giờ bất thường nếu không bị ép buộc cấu hình
+    if ANOMALY_START_HOUR >= 0 and ANOMALY_END_HOUR > ANOMALY_START_HOUR:
+        anomaly_hours = list(range(ANOMALY_START_HOUR, ANOMALY_END_HOUR))
+    else:
+        # Ngẫu nhiên chọn 1 đến 2 khung giờ trong khoảng từ 9h đến 21h
+        candidate_hours = [9, 10, 11, 14, 15, 16, 17, 19, 20, 21]
+        num_anomaly_peaks = random.choice([1, 2])
+        anomaly_hours = sorted(random.sample(candidate_hours, k=num_anomaly_peaks))
 
-    logs_per_hour = get_logs_per_hour(TOTAL_LOGS)
-    all_logs = []
+    # 3. Ngẫu nhiên hóa địa chỉ IP tấn công (Flood IPs)
+    if ANOMALY_IP:
+        flood_ips = [ANOMALY_IP]
+    else:
+        flood_ips = [f"10.0.{random.randint(0, 5)}.{random.randint(20, 220)}" for _ in range(random.choice([1, 2]))]
+
+    print(f"   [CẤU HÌNH NGẪU NHIÊN] Khung giờ bất thường : {[f'{h:02d}:00' for h in anomaly_hours]}")
+    print(f"   [CẤU HÌNH NGẪU NHIÊN] IP gửi yêu cầu quá tải: {flood_ips}")
+
+    # Pool IP người dùng đa dạng (300 IP thuộc các dải mạng thực tế)
+    ip_pool = []
+    subnets = ["14.161", "27.72", "113.160", "118.69", "123.30", "171.244", "203.162"]
+    for _ in range(300):
+        subnet = random.choice(subnets)
+        ip_pool.append(f"{subnet}.{random.randint(1, 254)}.{random.randint(1, 254)}")
+
+    logs_per_hour = get_logs_per_hour(actual_total_logs)
+    all_raw_lines = []
+    corrupted_count = 0
 
     for hour in range(24):
-        count = logs_per_hour[hour]
-        is_anomaly_hour = ANOMALY_START_HOUR <= hour < ANOMALY_END_HOUR
+        base_count = logs_per_hour[hour]
+        is_anomaly_hour = hour in anomaly_hours
 
         if is_anomaly_hour:
-            # Tăng gấp đôi log trong giờ anomaly để mô phỏng spike
-            count = count * 2
-            print(f"  [ANOMALY] Giờ {hour:02d}:00 → inject {count:,} logs (spike!)")
+            # Tăng mạnh số lượng log trong giờ bất thường (tăng thêm 60% - 100%)
+            spike_multiplier = random.uniform(1.6, 2.2)
+            count = int(base_count * spike_multiplier)
+            print(f"  [BẤT THƯỜNG] Giờ {hour:02d}:00 -> Phát sinh lưu lượng tăng vọt ({count:,} log)")
         else:
-            print(f"  Giờ {hour:02d}:00 → tạo {count:,} logs")
+            count = base_count
+            print(f"  Giờ {hour:02d}:00 -> Tạo {count:,} log bình thường")
 
         for _ in range(count):
             minute = random.randint(0, 59)
             second = random.randint(0, 59)
 
+            # Chèn 1% dữ liệu rác/hỏng ngẫu nhiên vào để kiểm thử tầng làm sạch YARN
+            if random.random() < 0.01:
+                corrupted_line = make_corrupted_raw_line(hour, minute, second, ip_pool)
+                all_raw_lines.append((hour, minute, second, corrupted_line))
+                corrupted_count += 1
+                continue
+
             if is_anomaly_hour:
-                # 70% log bất thường, 30% bình thường để trông tự nhiên
-                if random.random() < 0.7:
-                    # 40% trong anomaly là từ IP flood
-                    is_flood = random.random() < 0.4
-                    log = make_anomaly_log(hour, minute, second, is_flood_ip=is_flood)
+                if random.random() < 0.65:
+                    # Chọn ngẫu nhiên IP flood trong danh sách
+                    chosen_flood_ip = random.choice(flood_ips) if random.random() < 0.50 else None
+                    log_obj = make_anomaly_log(hour, minute, second, flood_ip=chosen_flood_ip)
                 else:
-                    log = make_normal_log(hour, minute, second, ip_pool)
+                    log_obj = make_normal_log(hour, minute, second, ip_pool)
             else:
-                log = make_normal_log(hour, minute, second, ip_pool)
+                log_obj = make_normal_log(hour, minute, second, ip_pool)
 
-            all_logs.append(log)
+            all_raw_lines.append((hour, minute, second, json.dumps(log_obj)))
 
-    # Sort theo timestamp
-    print(f"\n[INFO] Sort {len(all_logs):,} logs theo timestamp...")
-    all_logs.sort(key=lambda x: x["timestamp"])
+    # Sắp xếp các dòng log theo trình tự thời gian trong ngày
+    print(f"\n[INFO] Sắp xếp {len(all_raw_lines):,} bản ghi theo mốc thời gian...")
+    all_raw_lines.sort(key=lambda x: (x[0], x[1], x[2]))
 
     # Ghi ra file
     os.makedirs(os.path.dirname(OUTPUT_FILE) if os.path.dirname(OUTPUT_FILE) else ".", exist_ok=True)
-    print(f"[INFO] Ghi vào {OUTPUT_FILE}...")
-    with open(OUTPUT_FILE, "w") as f:
-        for log in all_logs:
-            f.write(json.dumps(log) + "\n")
+    print(f"[INFO] Ghi dữ liệu vào {OUTPUT_FILE}...")
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        for item in all_raw_lines:
+            f.write(item[3] + "\n")
 
     # Đồng thời ghi vào data/fake_logs.json để tương thích
     try:
         from config.settings import LEGACY_OUTPUT_FILE
-        with open(LEGACY_OUTPUT_FILE, "w") as f_legacy:
-            for log in all_logs:
-                f_legacy.write(json.dumps(log) + "\n")
+        with open(LEGACY_OUTPUT_FILE, "w", encoding="utf-8") as f_legacy:
+            for item in all_raw_lines:
+                f_legacy.write(item[3] + "\n")
     except Exception:
         pass
 
-    print(f"\n[INFO] Đã tạo thành công {len(all_logs):,} logs -> {OUTPUT_FILE}")
-    print(f"   Anomaly được inject vào giờ {ANOMALY_START_HOUR:02d}:00 – {ANOMALY_END_HOUR:02d}:00")
-    print(f"   Flood IP: {ANOMALY_IP}")
-
-    # Thống kê nhanh
-    error_count = sum(1 for l in all_logs if l["level"] == "ERROR")
-    status_5xx  = sum(1 for l in all_logs if l["status_code"] >= 500)
-    print(f"\nThống kê:")
-    print(f"   Total logs   : {len(all_logs):,}")
-    print(f"   ERROR level  : {error_count:,} ({error_count/len(all_logs)*100:.1f}%)")
-    print(f"   HTTP 5xx     : {status_5xx:,}  ({status_5xx/len(all_logs)*100:.1f}%)")
+    print(f"\n================================================================================")
+    print(f" [THÀNH CÔNG] ĐÃ TẠO XONG TẬP DỮ LIỆU LỚN")
+    print(f" Tổng số bản ghi sinh ra : {len(all_raw_lines):,} dòng")
+    print(f" Bản ghi rác/hỏng chèn vào: {corrupted_count:,} dòng (để kiểm thử tầng Tiền xử lý)")
+    print(f" Khung giờ bất thường    : {[f'{h:02d}:00' for h in anomaly_hours]}")
+    print(f" IP gửi yêu cầu quá tải  : {flood_ips}")
+    print(f" File lưu trữ            : {OUTPUT_FILE}")
+    print(f"================================================================================")
 
 
 def generate_continuous_logs():
-    """
-    Chế độ sinh log liên tục (Continuous Generation) — Nhiệm vụ của Đặng Văn Vinh
-    Mô phỏng máy chủ Web Server phát sinh log liên tục theo thời gian thực vào data/spool/web_access_live.log
-    """
+    """Chế độ sinh log liên tục theo thời gian thực."""
     import time
     continuous_file = os.path.join(SPOOL_DIR, f"web_access_live_{LOG_DATE}.log")
     os.makedirs(SPOOL_DIR, exist_ok=True)
     print("================================================================================")
-    print(" CONTINUOUS WEB SERVER LOG GENERATOR (ĐẶNG VĂN VINH)")
+    print(" CONTINUOUS WEB SERVER LOG GENERATOR")
     print(f" Ghi log thời gian thực vào: {continuous_file}")
     print(" Nhấn Ctrl + C để dừng...")
     print("================================================================================")
-    ip_pool = [generate_ip() for _ in range(50)]
+    ip_pool = [f"14.161.{random.randint(1,254)}.{random.randint(1,254)}" for _ in range(50)]
     counter = 0
     try:
         with open(continuous_file, "a", encoding="utf-8") as f:
             while True:
                 now = datetime.now()
-                hour = now.hour
-                minute = now.minute
-                second = now.second
-                log = make_normal_log(hour, minute, second, ip_pool)
+                log = make_normal_log(now.hour, now.minute, now.second, ip_pool)
                 log["timestamp"] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-                line = json.dumps(log)
-                f.write(line + "\n")
+                f.write(json.dumps(log) + "\n")
                 f.flush()
                 counter += 1
-                if counter % 5 == 0:
-                    status_flag = "OK  " if log["status_code"] < 400 else "WARN"
-                    print(f"[{log['timestamp']}] [{status_flag}] {log['method']} {log['endpoint']:<25} | Status: {log['status_code']} | {log['response_time_ms']}ms | IP: {log['ip']}")
-                time.sleep(random.uniform(0.05, 0.2))
+                if counter % 10 == 0:
+                    print(f"[{log['timestamp']}] {log['method']} {log['endpoint']:<25} | Status: {log['status_code']} | {log['response_time_ms']}ms | IP: {log['ip']}")
+                time.sleep(random.uniform(0.02, 0.1))
     except KeyboardInterrupt:
-        print(f"\n[INFO] Đã dừng sinh log liên tục. Tổng cộng đã ghi {counter:,} logs vào {continuous_file}.")
+        print(f"\n[INFO] Đã dừng sinh log liên tục. Tổng cộng: {counter:,} logs.")
 
 
 if __name__ == "__main__":

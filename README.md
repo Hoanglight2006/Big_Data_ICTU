@@ -15,28 +15,28 @@
 Hệ thống hoạt động theo mô hình **Batch Processing ngoại tuyến (Offline Log Analytics)** để phân tích toàn diện 24 giờ dữ liệu của ngày hôm trước:
 
 ```text
-[Web Server Logs / Generator] (Đặng Văn Vinh)
-       │ (Sinh 50,000 logs/24h)
+[Web Server Logs / Generator] 
+       │ (Sinh 150,000+ logs/24h)
        ▼
- [Apache Flume Ingestion] (Đặng Văn Vinh)
+ [Apache Flume Ingestion]
        │ (Nạp trực tiếp vào HDFS Raw Zone)
        ▼
-[HDFS Raw Zone] (/data/raw/YYYY-MM-DD/access.log)
+[HDFS Raw Zone] (/data/raw/YYYY-MM-DD/*.log)
        │
        ▼
-[YARN Preprocessing Job] (Nông Minh Trí & Triệu Văn Huy)
+[YARN Preprocessing Job]
        │ (Map-only Streaming lọc rác & chuẩn hóa trên YARN)
        ▼
 [HDFS Cleaned Zone] (/data/cleaned/YYYY-MM-DD/part-*)
        │
        ▼
-[YARN MapReduce Aggregation] (Dương Đình Hoàng - Leader)
+[YARN MapReduce Aggregation]
        │ (Tính toán phân tán trên cụm máy chủ YARN)
        ▼
 [HDFS Output Zone] (/data/output/YYYY-MM-DD/part-*)
        │
        ▼
-[Rule-based Anomaly Detector] (Dương Đình Hoàng - Leader)
+[Rule-based Anomaly Detector]
        │ (Phân tích trực tiếp từ HDFS stream)
        ▼
 [HDFS Reports Zone] (/data/reports/YYYY-MM-DD/anomaly_report.json)
@@ -121,9 +121,9 @@ bash run_pipeline.sh
 ## 4. 6 rule phát hiện bất thường
 
 Hệ thống phát hiện các sự cố bất thường dựa trên 6 quy tắc:
-1. **Rule 1 (Traffic Spike):** Giờ 15:00 tăng vọt số lượng request (vượt ngưỡng $\mu + 2\sigma$ hoặc $\mu + 3\sigma$).
-2. **Rule 2 (High Error Rate):** Tỉ lệ log `ERROR` lúc 15:00 vượt quá 5%.
-3. **Rule 3 (High 5xx Rate):** Tỉ lệ lỗi máy chủ HTTP 500/503 lúc 15:00 chiếm hơn 40%.
-4. **Rule 4 (IP Flood / DDoS):** IP `10.0.0.99` gửi hàng ngàn request trong 1 khung giờ.
-5. **Rule 5 (High Latency):** Thời gian phản hồi trung bình giờ 15:00 vọt lên > 4,000 ms.
-6. **Rule 6 (Top Failing Endpoints):** Trích xuất danh sách các endpoint chịu tỉ lệ lỗi lớn nhất (ví dụ `/api/payments/process`).
+1. **Quy tắc 1 (Lượng truy cập tăng vọt):** Số lượng yêu cầu trong một giờ tăng đột biến, cao hơn nhiều so với mức trung bình của cả ngày.
+2. **Quy tắc 2 (Tỉ lệ log lỗi cao):** Số lượng log báo lỗi (`ERROR`) trong một giờ chiếm hơn 5% tổng lượng truy cập.
+3. **Quy tắc 3 (Tỉ lệ lỗi máy chủ cao):** Các mã lỗi từ phía máy chủ (mã HTTP 500, 503) chiếm hơn 5% lượng truy cập trong giờ đó.
+4. **Quy tắc 4 (Spam truy cập / Tấn công làm nghẽn mạng):** Một địa chỉ IP gửi liên tục hơn 1.000 yêu cầu trong một giờ (có dấu hiệu spam hoặc tấn công từ chối dịch vụ).
+5. **Quy tắc 5 (Thời gian xử lý quá chậm):** Thời gian phản hồi trung bình của hệ thống trong một giờ vượt quá 2 giây (2.000 ms).
+6. **Quy tắc 6 (Đường dẫn gặp lỗi nhiều nhất):** Liệt kê các đường dẫn chức năng trên trang web (như thanh toán, tìm kiếm) bị lỗi nhiều lần nhất trong ngày.

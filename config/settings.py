@@ -32,7 +32,7 @@ found_jars = glob.glob(os.path.join(HADOOP_HOME, "share/hadoop/tools/lib/hadoop-
 HADOOP_STREAMING_JAR = os.getenv("HADOOP_STREAMING_JAR", found_jars[0] if found_jars else DEFAULT_JAR)
 
 # --- Fake Log Generation ---
-TOTAL_LOGS = int(os.getenv("TOTAL_LOGS", "50000"))      # Tổng số log sinh ra trong 24h
+TOTAL_LOGS = int(os.getenv("TOTAL_LOGS", "150000"))      # Tổng số log sinh ra trong 24h (mặc định 150.000)
 OUTPUT_FILE = os.path.join(SPOOL_DIR, f"web_access_{LOG_DATE}.log")
 LEGACY_OUTPUT_FILE = "data/fake_logs.json"
 
@@ -62,13 +62,10 @@ STATUS_CODES = {
     503: 0.02,   # 2% service unavailable
 }
 
-# --- Anomaly Injection ---
-# Khoảng thời gian inject bất thường (giờ trong ngày)
-ANOMALY_START_HOUR = 15    # 15:00
-ANOMALY_END_HOUR = 16      # 16:00
-
-# IP bị inject flood (DDoS kịch bản)
-ANOMALY_IP = "10.0.0.99"
+# --- Anomaly Injection (Nếu không cấu hình, generate_logs.py sẽ tự động random) ---
+ANOMALY_START_HOUR = int(os.getenv("ANOMALY_START_HOUR", "-1"))  # -1 nghĩa là tự động random khung giờ
+ANOMALY_END_HOUR = int(os.getenv("ANOMALY_END_HOUR", "-1"))
+ANOMALY_IP = os.getenv("ANOMALY_IP", "")                         # Để trống nghĩa là tự động random IP tấn công
 
 # --- MapReduce Output ---
 MAPREDUCE_OUTPUT_FILE = "data/mapreduce_results.txt"
