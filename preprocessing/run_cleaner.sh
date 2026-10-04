@@ -56,5 +56,5 @@ echo "Tien xu ly da hoan thanh"
 echo "Kiem tra du lieu sach tren HDFS:"
 hdfs dfs -ls "$HDFS_CLEANED_OUTPUT"
 echo "Mau 5 dong du lieu sach tren HDFS:"
-hdfs dfs -cat "${HDFS_CLEANED_OUTPUT}/part-*" | head -n 5
+hdfs dfs -cat "${HDFS_CLEANED_OUTPUT}/part-*" 2>/dev/null | head -n 5
 echo "=========================================================="

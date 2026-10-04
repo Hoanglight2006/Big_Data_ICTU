@@ -75,5 +75,5 @@ hdfs dfs -ls "$HDFS_OUTPUT"
 
 echo "=========================================================="
 echo " [INFO] Mẫu 10 dòng kết quả tổng hợp trên HDFS:"
-hdfs dfs -cat "${HDFS_OUTPUT}/part-*" | head -n 10
+hdfs dfs -cat "${HDFS_OUTPUT}/part-*" 2>/dev/null | head -n 10
 echo "=========================================================="
