@@ -1,19 +1,3 @@
-#!/usr/bin/env python3
-# =============================================================================
-# preprocessing/cleaner_mapper.py — Hadoop Streaming Mapper for Data Cleaning
-#
-# Chương trình: Samsung Innovation Campus (SIC) - Big Data Course
-# Nhóm: Group 3
-# Thành viên phụ trách: Nông Minh Trí & Triệu Văn Huy
-#
-# Chức năng:
-#   - Nhận log thô từng dòng từ HDFS qua sys.stdin trên các worker nodes của cụm YARN.
-#   - Lọc bỏ dòng lỗi cú pháp JSON, thiếu trường, sai định dạng IPv4.
-#   - Chuẩn hóa kiểu dữ liệu nghiêm ngặt.
-#   - Đẩy bản ghi sạch ra sys.stdout trực tiếp vào HDFS (/data/cleaned/<LOG_DATE>).
-#   - KHÔNG tải file trung gian về máy host.
-# =============================================================================
-
 import sys
 import json
 import re

@@ -1,20 +1,3 @@
-#!/usr/bin/env python3
-# =============================================================================
-# mapreduce/mapper.py — Hadoop Streaming Mapper
-#
-# NGUYÊN LÝ HOẠT ĐỘNG:
-#   - Hadoop Streaming truyền từng dòng log từ HDFS qua sys.stdin
-#   - Mapper đọc từng dòng (JSON string), parse các trường cần thiết:
-#       + timestamp (lấy ra giờ 'HH')
-#       + ip
-#       + status_code (kiểm tra 5xx)
-#       + log_level (kiểm tra ERROR)
-#       + response_time_ms
-#       + endpoint
-#   - Emit các cặp key-value dạng: <metric_type>:<key>\t<value>
-#   - Hadoop framework sẽ tự động Sort/Shuffle các dòng theo Key trước khi đưa vào Reducer.
-# =============================================================================
-
 import sys
 import json
 

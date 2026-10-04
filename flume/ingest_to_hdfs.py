@@ -1,13 +1,3 @@
-#!/usr/bin/env python3
-# =============================================================================
-# flume/ingest_to_hdfs.py — Ingestion Runner vào HDFS
-#
-# Chức năng:
-#   - Đảm bảo thư mục HDFS /data/logs/<LOG_DATE> tồn tại.
-#   - Đẩy file log từ data/spool/ lên HDFS theo đúng phân vùng ngày.
-#   - Hoạt động như Ingestion Agent tự động cho Pipeline.
-# =============================================================================
-
 import os
 import sys
 import subprocess

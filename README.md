@@ -49,13 +49,13 @@ Hệ thống hoạt động theo mô hình **Batch Processing ngoại tuyến (O
 ```text
 log-simulation/
 ├── config/             # Cấu hình trung tâm (HDFS paths, thresholds, dynamic JARs)
-├── data/               # Module sinh log web server (Đặng Văn Vinh)
+├── data/               # Module sinh log web server
 ├── flume/              # Cấu hình Apache Flume Agent nạp HDFS & Ingestion Runner
-├── preprocessing/      # Tiền xử lý phân tán Map-only trên YARN (Nông Minh Trí & Triệu Văn Huy)
-├── mapreduce/          # Hadoop Streaming Mapper & Reducer trên YARN (Dương Đình Hoàng)
-├── anomaly/            # Bộ lọc 6 quy tắc phát hiện bất thường & xuất báo cáo HDFS (Dương Đình Hoàng)
+├── preprocessing/      # Tiền xử lý phân tán Map-only trên YARN 
+├── mapreduce/          # Hadoop Streaming Mapper & Reducer trên YARN
+├── anomaly/            # Bộ lọc 6 quy tắc phát hiện bất thường & xuất báo cáo HDFS
 ├── Dockerfile          # Docker image đóng gói ứng dụng pipeline & Hadoop client
-├── docker-compose.yml  # Cấu hình cụm Hadoop (HDFS, YARN) và Pipeline Runner
+├── docker-compose.yml  # Cấu hình cụm Hadoop và Pipeline Runner
 ├── hadoop.env          # Biến môi trường cho cụm Hadoop
 ├── run_pipeline.sh     # Script chạy tự động toàn bộ pipeline trên YARN & HDFS
 └── README.md           # Hướng dẫn chi tiết
@@ -81,8 +81,6 @@ docker logs -f log-pipeline-runner
 # - YARN Resource Manager: http://localhost:8088
 ```
 
-Dữ liệu xử lý được lưu trữ tập trung trên HDFS, không tải file trung gian về máy host.
-
 ---
 
 ### Cách 2: Chạy trực tiếp trên máy ảo Ubuntu / Linux đã cấu hình Hadoop
@@ -97,30 +95,30 @@ bash run_pipeline.sh
 ```
 
 #### Hoặc chạy thủ công từng bước theo phân công:
-1. **[Đặng Văn Vinh] Sinh dữ liệu log:**
+1. **Sinh dữ liệu log:**
    ```bash
    python3 data/generate_logs.py
    ```
-2. **[Đặng Văn Vinh] Nạp dữ liệu vào HDFS Raw Zone:**
+2. **Nạp dữ liệu vào HDFS Raw Zone:**
    ```bash
    python3 flume/ingest_to_hdfs.py
    ```
-3. **[Nông Minh Trí & Triệu Văn Huy] Tiền xử lý Map-only Job trên YARN:**
+3. **Tiền xử lý Map-only Job trên YARN:**
    ```bash
    bash preprocessing/run_cleaner.sh
    ```
-4. **[Dương Đình Hoàng] MapReduce Aggregation Job trên YARN:**
+4. **MapReduce Aggregation Job trên YARN:**
    ```bash
    bash mapreduce/run_job.sh
    ```
-5. **[Dương Đình Hoàng] Phát hiện bất thường từ HDFS stream:**
+5. **Phát hiện bất thường từ HDFS stream:**
    ```bash
    python3 anomaly/detector.py
    ```
 
 ---
 
-## 4. Các Quy Tắc Phát Hiện Bất Thường (6 Rules)
+## 4. 6 rule phát hiện bất thường
 
 Hệ thống phát hiện các sự cố bất thường dựa trên 6 quy tắc:
 1. **Rule 1 (Traffic Spike):** Giờ 15:00 tăng vọt số lượng request (vượt ngưỡng $\mu + 2\sigma$ hoặc $\mu + 3\sigma$).

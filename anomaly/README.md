@@ -1,6 +1,6 @@
 # Thư Mục `anomaly/` — Phát Hiện Bất Thường Dựa Trên Quy Tắc (Rule-based Detection)
 
-> **Thành viên phụ trách (theo Action Plan):** Dương Đình Hoàng (Leader)  
+> **Thành viên phụ trách:** Dương Đình Hoàng 
 > **Nhiệm vụ:** *"Building the core anomaly detection rules, calculating statistical baselines and anomaly thresholds."*
 
 ---

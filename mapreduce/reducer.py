@@ -1,16 +1,3 @@
-#!/usr/bin/env python3
-# =============================================================================
-# mapreduce/reducer.py — Hadoop Streaming Reducer
-#
-# NGUYÊN LÝ HOẠT ĐỘNG:
-#   - Nhận input từ stdin đã được Hadoop Sort/Shuffle theo Key.
-#   - Tất cả các dòng có cùng Key sẽ đứng liền kề nhau liên tục.
-#   - Reducer gom nhóm (group by) theo current_key:
-#       + Với hour_resp (tính trung bình): cộng tổng response_time và đếm count
-#       + Với các metric khác (tính tổng): cộng dồn sum các count
-#   - Khi đổi Key -> emit kết quả aggregate của Key trước đó ra stdout.
-# =============================================================================
-
 import sys
 
 def emit_result(key, val, count=1):

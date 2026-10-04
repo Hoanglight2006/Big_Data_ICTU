@@ -1,6 +1,6 @@
 # Thư Mục `mapreduce/` — Tính Toán Phân Tán (Hadoop Streaming)
 
-> **Thành viên phụ trách (theo Action Plan):** Dương Đình Hoàng (Leader)  
+> **Thành viên phụ trách:** Dương Đình Hoàng  
 > **Nhiệm vụ:** *"Utilizes MapReduce to analyze data provided by Nong Minh Tri and Trieu Van Huy, building the core aggregation metrics."*
 
 ---
@@ -9,8 +9,7 @@
 
 Thực thi tính toán phân tán trên cụm **Hadoop YARN** thông qua cơ chế **Hadoop Streaming**:
 - **Dữ liệu đầu vào:** Thư mục log đã được làm sạch trên HDFS (`/data/cleaned/<LOG_DATE>/`).
-- **Dữ liệu đầu ra:** Kết quả tổng hợp chỉ số lưu trực tiếp trên HDFS (`/data/output/<LOG_DATE>/part-*`).
-- **Lưu trữ trên cụm:** Dữ liệu được đọc và ghi trực tiếp trên HDFS, không tải file về máy host.
+- **Dữ liệu đầu ra:** Kết quả tổng hợp chỉ số lưu trên HDFS (`/data/output/<LOG_DATE>/part-*`).
 
 ---
 

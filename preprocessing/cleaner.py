@@ -1,24 +1,3 @@
-#!/usr/bin/env python3
-# =============================================================================
-# preprocessing/cleaner.py — Làm Sạch & Chuẩn Hóa Dữ Liệu Log Web Server
-#
-# Chương trình: Samsung Innovation Campus (SIC) - Big Data Course
-# Nhóm: Group 3
-# Thành viên phụ trách: NÔNG MINH TRÍ & TRIỆU VĂN HUY
-#
-# Nhiệm vụ trong Action Plan:
-#   "Receive the raw HDFS data from Dang Van Vinh, cleaning and structuring it
-#    to ensure high-quality inputs for the MapReduce analysis."
-#
-# Nguyên lý hoạt động:
-#   1. Đọc luồng log thô từ file nguồn hoặc HDFS.
-#   2. Kiểm tra tính toàn vẹn của JSON, lọc bỏ các dòng bị hỏng (corrupted / malformed).
-#   3. Kiểm tra các trường bắt buộc (timestamp, ip, status_code, endpoint, response_time_ms).
-#   4. Chuẩn hóa định dạng IP, loại bỏ ký tự lạ, chuyển đổi kiểu dữ liệu nghiêm ngặt.
-#   5. Tách và ghi nhận các bản ghi rác/hỏng vào 'data/corrupted_logs.txt'.
-#   6. Xuất tập dữ liệu sạch chất lượng cao 'data/cleaned_logs.json' sẵn sàng cho MapReduce.
-# =============================================================================
-
 import os
 import sys
 import json
@@ -51,8 +30,7 @@ def clean_and_structure_logs(input_path="data/fake_logs.json",
     Tiến hành làm sạch và chuẩn hóa dữ liệu log.
     """
     print("================================================================================")
-    print(" TIỀN XỬ LÝ & LÀM SẠCH DỮ LIỆU LOG (PREPROCESSING & DATA CLEANING)")
-    print(" Phụ trách: Nông Minh Trí & Triệu Văn Huy (Group 3)")
+    print(" TIỀN XỬ LÝ & LÀM SẠCH DỮ LIỆU LOG")
     print(f" Nguồn log thô       : {input_path}")
     print(f" File dữ liệu sạch   : {output_clean_path}")
     print(f" File log lỗi bị loại: {output_corrupt_path}")

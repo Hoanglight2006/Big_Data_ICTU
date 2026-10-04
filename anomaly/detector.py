@@ -1,20 +1,3 @@
-#!/usr/bin/env python3
-# =============================================================================
-# anomaly/detector.py — Rule-based Anomaly Detection
-#
-# NGUYÊN LÝ HOẠT ĐỘNG:
-#   - Đọc kết quả tổng hợp từ MapReduce (data/mapreduce_results.txt)
-#   - Phân tích thống kê baseline (Mean, Standard Deviation) cho traffic theo giờ
-#   - Áp dụng 6 Rules phát hiện bất thường:
-#       + Rule 1 (Traffic Spike): Traffic theo giờ vượt mean + 2*std (WARNING) hoặc mean + 3*std (CRITICAL)
-#       + Rule 2 (High Error Rate): Tỉ lệ log ERROR theo giờ vượt 5%
-#       + Rule 3 (High 5xx Rate): Tỉ lệ mã lỗi HTTP 5xx theo giờ vượt 5%
-#       + Rule 4 (IP Flood): Một IP gửi > 1,000 request trong 1 giờ
-#       + Rule 5 (High Response Time): Response time trung bình của 1 giờ > 2,000ms
-#       + Rule 6 (Endpoint Failure): Endpoint có số lượng lỗi lớn đột biến
-#   - Xuất báo cáo tổng quan trực quan ra màn hình và file JSON report
-# =============================================================================
-
 import os
 import sys
 import math
@@ -165,7 +148,7 @@ def detect_anomalies(data, date_str=LOG_DATE):
     anomalies = []
 
     print("\n" + "=" * 80)
-    print("                BÁO CÁO PHÁT HIỆN BẤT THƯỜNG (ANOMALY DETECTION REPORT)                ")
+    print("                BÁO CÁO PHÁT HIỆN BẤT THƯỜNG                ")
     print("=" * 80)
     print(f"Thống kê Traffic theo giờ: Mean = {mean_req:.1f} reqs/h | StdDev = {std_req:.1f}")
     print(f"   Ngưỡng Cảnh Báo (WARNING):  > {warn_threshold:.1f} reqs/h (Mean + 2*Std)")

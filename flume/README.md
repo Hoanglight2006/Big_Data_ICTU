@@ -1,6 +1,6 @@
 # Thư Mục `flume/` — Tầng Thu Thập & Nạp Dữ Liệu (Ingestion Layer)
 
-> **Thành viên phụ trách (theo Action Plan):** Đặng Văn Vinh  
+> **Thành viên phụ trách:** Đặng Văn Vinh  
 > **Nhiệm vụ:** Thu thập log phát sinh từ Web Server và tự động lưu trữ phân vùng theo ngày trên HDFS.
 
 ---
