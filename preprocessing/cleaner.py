@@ -42,7 +42,7 @@ def clean_and_structure_logs(input_path="data/fake_logs.json",
             input_path = OUTPUT_FILE
         else:
             print(f"[ERROR] Không tìm thấy file nguồn tại {input_path} hoặc {OUTPUT_FILE}")
-            print("        Hãy chạy module sinh log của bạn Vinh trước: python data/generate_logs.py")
+            print("        Hãy chạy module sinh log trước: python data/generate_logs.py")
             sys.exit(1)
 
     total_records = 0

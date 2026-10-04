@@ -19,7 +19,7 @@ export LOG_DATE="${1:-${LOG_DATE:-$(date +%F)}}"
 export HADOOP_HOME="${HADOOP_HOME:-$HOME/hadoop-3.2.1}"
 
 echo "=========================================================="
-echo " [INFO] BAT DAU PIPELINE PHAN TICH LOG (SIC GROUP 3)"
+echo " [INFO] BAT DAU PIPELINE PHAN TICH LOG"
 echo " Ngay phan tich: $LOG_DATE"
 echo " Hadoop Home   : $HADOOP_HOME"
 echo " Thu muc chay  : $SCRIPT_DIR"
@@ -70,33 +70,33 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# BUOC 2: SINH DU LIEU LOG (DANG VAN VINH)
+# BUOC 2: SINH DU LIEU LOG
 # -----------------------------------------------------------------------------
-echo -e "\n[2/6] [Dang Van Vinh] Sinh du lieu log web server cho ngay $LOG_DATE..."
+echo -e "\n[2/6] Sinh du lieu log web server cho ngay $LOG_DATE..."
 python3 data/generate_logs.py
 
 # -----------------------------------------------------------------------------
-# BUOC 3: INGESTION VAO HDFS RAW ZONE (DANG VAN VINH - FLUME)
+# BUOC 3: INGESTION VAO HDFS RAW ZONE
 # -----------------------------------------------------------------------------
-echo -e "\n[3/6] [Dang Van Vinh] Flume Ingestion nap du lieu vao HDFS (/data/raw/$LOG_DATE)..."
+echo -e "\n[3/6] Flume Ingestion nap du lieu vao HDFS (/data/raw/$LOG_DATE)..."
 python3 flume/ingest_to_hdfs.py
 
 # -----------------------------------------------------------------------------
-# BUOC 4: TIEN XU LY & LAM SACH PHAN TAN TREN YARN (NONG MINH TRI & TRIEU VAN HUY)
+# BUOC 4: TIEN XU LY & LAM SACH PHAN TAN TREN YARN
 # -----------------------------------------------------------------------------
-echo -e "\n[4/6] [Nong Minh Tri & Trieu Van Huy] Preprocessing Map-only Job tren YARN (/data/cleaned/$LOG_DATE)..."
+echo -e "\n[4/6] Preprocessing Map-only Job tren YARN (/data/cleaned/$LOG_DATE)..."
 bash preprocessing/run_cleaner.sh "$LOG_DATE"
 
 # -----------------------------------------------------------------------------
-# BUOC 5: TONG HOP MAPREDUCE TREN YARN (DUONG DINH HOANG)
+# BUOC 5: TONG HOP MAPREDUCE TREN YARN
 # -----------------------------------------------------------------------------
-echo -e "\n[5/6] [Duong Dinh Hoang] Thuc thi Hadoop MapReduce Streaming tren YARN (/data/output/$LOG_DATE)..."
+echo -e "\n[5/6] Thuc thi Hadoop MapReduce Streaming tren YARN (/data/output/$LOG_DATE)..."
 bash mapreduce/run_job.sh "$LOG_DATE"
 
 # -----------------------------------------------------------------------------
-# BUOC 6: PHAN TICH BAT THUONG & LUU BAO CAO HDFS (DUONG DINH HOANG)
+# BUOC 6: PHAN TICH BAT THUONG & LUU BAO CAO HDFS
 # -----------------------------------------------------------------------------
-echo -e "\n[6/6] [Duong Dinh Hoang] Rule-based Anomaly Detection truc tiep tu HDFS stream..."
+echo -e "\n[6/6] Phat hien bat thuong truc tiep tu HDFS stream..."
 python3 anomaly/detector.py --date "$LOG_DATE"
 
 echo "=========================================================="

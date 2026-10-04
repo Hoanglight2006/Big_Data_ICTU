@@ -29,7 +29,6 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "=========================================================="
 echo " [INFO] BAT DAU MAPREDUCE AGGREGATION TREN YARN"
-echo " Phụ trách      : Dương Đình Hoàng (Leader)"
 echo " Ngày phân tích : $LOG_DATE"
 echo " Hadoop Home    : $HADOOP_HOME"
 echo " Streaming JAR  : $STREAMING_JAR"
