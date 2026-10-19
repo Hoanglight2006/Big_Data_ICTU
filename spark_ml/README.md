@@ -1,59 +1,68 @@
-# Module Học Máy PySpark MLlib (Random Forest Classifier)
+# Module Mô Hình Hóa Học Máy PySpark MLlib (Random Forest)
 
 > **Môn học:** Samsung Innovation Campus (SIC) - Big Data Course  
-> **Nhiệm vụ:** Xây dựng mô hình Machine Learning phân loại & phát hiện nhật ký bất thường trên nền tảng tính toán phân tán Apache Spark.
+> **Ứng dụng:** Áp dụng nguyên mẫu quy trình phân loại PySpark MLlib (từ bài giảng SIC) vào việc phát hiện nhật ký bất thường của dự án Web Server.
 
 ---
 
-## 1. Cấu Trúc Thư Mục
+## 1. Nguồn Gốc Dữ Liệu
+
+Dữ liệu huấn luyện **lấy 100% từ kết quả làm sạch của Pipeline** trong dự án:
+- Nguồn: `data/cleaned_logs.json` (hơn 52.000 log thực tế sau khi qua tầng YARN Preprocessing).
+- Tập dữ liệu: `data/web_log_dataset.csv` (chứa các trường: `service`, `method`, `endpoint`, `status_code`, `response_time_ms`, `level`, và nhãn `is_anomaly`).
+- Nếu cần xuất lại CSV từ log mới:
+  ```bash
+  python3 spark_ml/export_cleaned_to_csv.py
+  ```
+
+---
+
+## 2. Quy Trình Mô Hình Hóa Chuẩn Theo Bài Mẫu SIC
+
+Toàn bộ các bước được viết chuẩn khớp từng dòng với bài giảng Google Colab:
 
 ```text
-spark_ml/
-├── export_dataset.py                       # Script sinh tập dữ liệu huấn luyện (15.000 mẫu)
-├── train_random_forest.py                  # Script huấn luyện PySpark MLlib (chạy trên máy/cụm Spark)
-├── SIC_WebLog_Anomaly_RandomForest.ipynb   # File Jupyter Notebook (dùng upload chạy trực tiếp trên Google Colab)
-└── README.md                               # Hướng dẫn chi tiết
+[Dữ liệu Web Log thực tế (CSV)]
+              │
+              ▼
+[Tiền xử lý (cast DoubleType, dropna)]
+              │
+              ▼
+[Phân tách Cột: Categorical vs Numeric]
+              │
+              ▼
+[StringIndexer (Nhãn & Cột danh mục)]
+              │
+              ▼
+[VectorAssembler (Gộp thành Cột features)]
+              │
+              ▼
+[randomSplit (70% Train, 30% Test)]
+              │
+              ▼
+[RandomForestClassifier (100 cây quyết định)]
+              │
+              ▼
+[Đánh giá Accuracy & Feature Importances]
 ```
 
 ---
 
-## 2. Quy Trình Mô Hình Hóa Chuẩn PySpark ML
-
-1. **Khởi tạo:** `SparkSession.builder.appName("RandomForestClassifier").getOrCreate()`
-2. **Nạp & Tiền xử lý:**
-   - Đọc dữ liệu CSV bằng `spark.read.options(header=True, inferSchema=True)`
-   - Ép kiểu `response_time_ms` sang `DoubleType` và loại bỏ dòng `null` (`dropna()`)
-   - Bỏ cột định danh `log_id` (`drop('log_id')`)
-3. **Trích xuất đặc trưng (Feature Engineering):**
-   - `StringIndexer` cho cột nhãn mục tiêu `is_anomaly` $\rightarrow$ `indexedLabel`
-   - `StringIndexer` cho các cột danh mục: `service`, `endpoint`, `method` $\rightarrow$ `*Index`
-   - `VectorAssembler` kết hợp các cột danh mục đã mã hóa và cột số (`status_code`, `response_time_ms`, `hour`) $\rightarrow$ Cột `features`
-4. **Phân chia dữ liệu:** `randomSplit([0.7, 0.3])` (70% Train, 30% Test)
-5. **Huấn luyện:** `RandomForestClassifier(labelCol="indexedLabel", featuresCol="features", numTrees=100)`
-6. **Đánh giá:**
-   - Đo độ chính xác bằng `MulticlassClassificationEvaluator(metricName="accuracy")`
-   - Xuất bảng mức độ ảnh hưởng của từng đặc trưng (`featureImportances`)
-
----
-
-## 3. Cách Chạy
+## 3. Cách Sử Dụng
 
 ### Cách 1: Chạy trên Google Colab (Để lấy ảnh chụp kết quả đưa vào Slide)
-1. Mở [Google Colab](https://colab.research.google.com/) và tải file `SIC_WebLog_Anomaly_RandomForest.ipynb` lên.
-2. Tải file dữ liệu `data/web_log_anomaly_dataset.csv` lên thư mục làm việc của Colab.
-3. Chạy từng cell từ trên xuống dưới.
-4. Chụp ảnh cell kết quả:
-   - Bảng dự đoán mẫu `predictions.show(5)`
-   - `Do chinh xac = 0.98`
-   - Bảng mức độ quan trọng `featureImportances`
+1. Mở [Google Colab](https://colab.research.google.com/).
+2. Tải lên file notebook: `spark_ml/SIC_WebLog_Anomaly_RandomForest.ipynb`.
+3. Tải lên file dữ liệu: `data/web_log_dataset.csv`.
+4. Bấm **Chạy tất cả (Run all)**:
+   - Cell 1-7: Chuẩn bị dữ liệu và tạo `features` vector.
+   - Cell 8: Huấn luyện `RandomForestClassifier` và hiển thị kết quả dự đoán `predictions.show(5)`.
+   - Cell 9: In độ chính xác `Do chinh xac = 0.99`.
+   - Cell 10: In bảng `Muc do anh huong den viec phat hien bat thuong` (`featureImportances`).
+5. Chụp ảnh kết quả cell 8, 9, 10 dán trực tiếp vào Slide thuyết trình Capstone.
 
 ### Cách 2: Chạy trực tiếp trên máy ảo Linux / Ubuntu
 ```bash
-# 1. Sinh tập dữ liệu CSV mẫu:
-python3 spark_ml/export_dataset.py
-
-# 2. Huấn luyện bằng PySpark:
 python3 spark_ml/train_random_forest.py
-# Hoặc submit qua Spark:
-# spark-submit spark_ml/train_random_forest.py
 ```
+*(Hoặc submit qua Apache Spark: `spark-submit spark_ml/train_random_forest.py`)*
