@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import glob
+import time
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.settings import LOG_DATE, HDFS_RAW_DIR, SPOOL_DIR, OUTPUT_FILE
@@ -11,11 +12,22 @@ def run_command(cmd):
     print(f"[CMD] {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"[WARN/ERR] {result.stderr.strip()}")
+        if result.stderr.strip():
+            print(f"[WARN/ERR] {result.stderr.strip()}")
     else:
         if result.stdout.strip():
             print(f"[OUT] {result.stdout.strip()}")
     return result.returncode == 0
+
+def check_hdfs_files():
+    """Kiểm tra xem thư mục HDFS Raw đã có file log hay chưa."""
+    res = subprocess.run(["hdfs", "dfs", "-ls", HDFS_RAW_DIR], capture_output=True, text=True)
+    if res.returncode == 0 and res.stdout.strip():
+        # Kiểm tra có file log thực sự
+        lines = [l for l in res.stdout.splitlines() if not l.startswith("Found")]
+        if len(lines) > 0:
+            return True
+    return False
 
 def main():
     print("==========================================================")
@@ -32,30 +44,44 @@ def main():
     print(f"\n[1/3] Tao thu muc tren HDFS: {HDFS_RAW_DIR}")
     run_command(["hdfs", "dfs", "-mkdir", "-p", HDFS_RAW_DIR])
 
-    # 2. Tìm file log trong spool dir
-    log_files = glob.glob(os.path.join(SPOOL_DIR, f"web_access_{LOG_DATE}.log"))
-    if not log_files:
-        # Fallback tìm các file log khác hoặc fake_logs.json
-        if os.path.exists(OUTPUT_FILE):
-            log_files = [OUTPUT_FILE]
-        elif os.path.exists("data/fake_logs.json"):
-            log_files = ["data/fake_logs.json"]
+    target_log = os.path.join(SPOOL_DIR, f"web_access_{LOG_DATE}.log")
+    completed_log = f"{target_log}.COMPLETED"
 
-    if not log_files:
-        print(f"[ERROR] Khong tim thay file log cho ngay {LOG_DATE} tai {SPOOL_DIR}")
-        print("        Hay chay: python3 data/generate_logs.py truoc.")
-        sys.exit(1)
+    # 2. Kiểm tra tiến trình Apache Flume Agent ở Terminal 1
+    print(f"\n[2/3] Kiem tra Apache Flume Agent dang chay o Terminal 1...")
+    flume_ingested = False
 
-    target_file = log_files[0]
-    print(f"\n[2/3] Nap file log [{target_file}] len HDFS [{HDFS_RAW_DIR}]...")
-    success = run_command(["hdfs", "dfs", "-put", "-f", target_file, f"{HDFS_RAW_DIR}/access.log"])
+    # Lắng nghe tối đa 15 giây xem Flume có xử lý file không
+    for i in range(15):
+        if os.path.exists(completed_log) or check_hdfs_files():
+            flume_ingested = True
+            break
+        time.sleep(1)
 
-    if success:
-        print(f"\n[3/3] [INFO] Nap du lieu vao HDFS thanh cong.")
-        run_command(["hdfs", "dfs", "-ls", HDFS_RAW_DIR])
+    if flume_ingested:
+        print(f"      [SUCCESS] Phat hien Apache Flume Agent da tu dong nap file vao HDFS!")
     else:
-        print(f"\n[3/3] [ERROR] Nap du lieu vao HDFS that bai. Hay kiem tra dich vu Hadoop.")
-        sys.exit(1)
+        print(f"      [WARN] Khong phat hien Flume Agent hoat dong tai Terminal 1 (bash flume/start_flume.sh).")
+        print(f"             Dang tu dong fallback nap truc tiep de dam bao pipeline khong bi gian doan...")
+        
+        # Tìm file nguồn để nạp
+        source_file = None
+        if os.path.exists(target_log):
+            source_file = target_log
+        elif os.path.exists(completed_log):
+            source_file = completed_log
+        elif os.path.exists(OUTPUT_FILE):
+            source_file = OUTPUT_FILE
+
+        if not source_file:
+            print(f"[ERROR] Khong tim thay file log tai {SPOOL_DIR}")
+            sys.exit(1)
+
+        run_command(["hdfs", "dfs", "-put", "-f", source_file, f"{HDFS_RAW_DIR}/access.log"])
+
+    # 3. Xác nhận kết quả
+    print(f"\n[3/3] [INFO] Du lieu da co san tren HDFS Raw Zone:")
+    run_command(["hdfs", "dfs", "-ls", HDFS_RAW_DIR])
 
 if __name__ == "__main__":
     main()

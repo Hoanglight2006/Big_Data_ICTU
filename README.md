@@ -83,47 +83,40 @@ docker logs -f log-pipeline-runner
 
 ---
 
-### Cách 2: Chạy trực tiếp trên máy ảo Ubuntu / Linux đã cấu hình Hadoop
+### Cách 2: Chạy trực tiếp trên máy ảo Ubuntu / Linux (Mô hình 2 Terminal chuẩn)
 
-#### Chạy toàn bộ pipeline tự động (6 bước):
+Để quay video demo trực quan và vận hành Apache Flume thật:
+
+#### Terminal 1: Khởi động dịch vụ Apache Flume Ingestion (Chạy nền)
 ```bash
-# Mặc định lấy ngày hiện tại:
+bash flume/start_flume.sh
+```
+*Terminal này sẽ thường trực lắng nghe thư mục `data/spool/`. Khi có log mới, Flume sẽ cuộn log nạp thẳng vào HDFS Raw Zone.*
+
+#### Terminal 2: Chạy Pipeline điều phối & phân tích tự động
+```bash
+# Cài đặt thư viện AI (tùy chọn nhưng khuyên dùng cho mô hình Isolation Forest):
+pip install -r requirements.txt
+
+# Chạy toàn bộ pipeline:
 bash run_pipeline.sh
 
-# (Tùy chọn) Truyền ngày cụ thể để xử lý:
+# (Tùy chọn) Chạy cho ngày cụ thể:
 # bash run_pipeline.sh 2026-10-01
 ```
 
-#### Hoặc chạy thủ công từng bước theo phân công:
-1. **Sinh dữ liệu log:**
-   ```bash
-   python3 data/generate_logs.py
-   ```
-2. **Nạp dữ liệu vào HDFS Raw Zone:**
-   ```bash
-   python3 flume/ingest_to_hdfs.py
-   ```
-3. **Tiền xử lý Map-only Job trên YARN:**
-   ```bash
-   bash preprocessing/run_cleaner.sh
-   ```
-4. **MapReduce Aggregation Job trên YARN:**
-   ```bash
-   bash mapreduce/run_job.sh
-   ```
-5. **Phát hiện bất thường từ HDFS stream:**
-   ```bash
-   python3 anomaly/detector.py
-   ```
-
 ---
 
-## 4. 6 rule phát hiện bất thường
+## 4. Cơ chế Phát hiện Bất thường: Quy trình 2 Lớp (Rule Screening + AI Verification)
 
-Hệ thống phát hiện các sự cố bất thường dựa trên 6 quy tắc:
-1. **Quy tắc 1 (Lượng truy cập tăng vọt):** Số lượng yêu cầu trong một giờ tăng đột biến, cao hơn nhiều so với mức trung bình của cả ngày.
-2. **Quy tắc 2 (Tỉ lệ log lỗi cao):** Số lượng log báo lỗi (`ERROR`) trong một giờ chiếm hơn 5% tổng lượng truy cập.
-3. **Quy tắc 3 (Tỉ lệ lỗi máy chủ cao):** Các mã lỗi từ phía máy chủ (mã HTTP 500, 503) chiếm hơn 5% lượng truy cập trong giờ đó.
-4. **Quy tắc 4 (Spam truy cập / Tấn công làm nghẽn mạng):** Một địa chỉ IP gửi liên tục hơn 1.000 yêu cầu trong một giờ (có dấu hiệu spam hoặc tấn công từ chối dịch vụ).
-5. **Quy tắc 5 (Thời gian xử lý quá chậm):** Thời gian phản hồi trung bình của hệ thống trong một giờ vượt quá 2 giây (2.000 ms).
-6. **Quy tắc 6 (Đường dẫn gặp lỗi nhiều nhất):** Liệt kê các đường dẫn chức năng trên trang web (như thanh toán, tìm kiếm) bị lỗi nhiều lần nhất trong ngày.
+Hệ thống kết hợp giữa **Bộ luật Heuristic** và **Học máy không giám sát (Isolation Forest)** để loại bỏ báo động giả (False Positive):
+
+1. **Quy tắc 1 (Lượng truy cập tăng vọt):** Số lượng yêu cầu trong một giờ vượt ngưỡng $Mean + 2 \times StdDev$.
+2. **Quy tắc 2 (Tỉ lệ log lỗi cao):** Số log báo lỗi (`ERROR`) trong một giờ chiếm hơn 5% tổng lượng truy cập.
+3. **Quy tắc 3 (Tỉ lệ lỗi máy chủ cao):** Các mã lỗi 500/503 chiếm hơn 5% lượng truy cập trong giờ.
+4. **Quy tắc 4 (Quy trình 2 lớp kiểm tra IP):**
+   - **Cấp 1 (Sàng lọc bằng Rule):** Chọn ra các IP có lưu lượng cao bất thường ($> 1.000$ req/giờ) đưa vào danh sách nghi vấn.
+   - **Cấp 2 (Thẩm định bằng AI - Isolation Forest):** Đánh giá đa chiều (Lưu lượng request + Tỉ lệ gây lỗi). Phân biệt rạch ròi giữa **Khách hàng lớn / Đối tác lành tính** (Request cao nhưng tỉ lệ lỗi $\approx 0\%$) và **Tấn công Botnet / Flooding độc hại** (Request cao kèm tỉ lệ lỗi cao).
+5. **Quy tắc 5 (Thời gian xử lý quá chậm):** Thời gian phản hồi trung bình trong một giờ vượt quá 2.000 ms.
+6. **Quy tắc 6 (Đường dẫn gặp lỗi nhiều nhất):** Liệt kê Top 5 endpoints bị lỗi nhiều lần nhất trong ngày.
+

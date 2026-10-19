@@ -49,9 +49,10 @@ def main():
         # 5. Đếm request theo từng IP trong từng giờ -> Key: ip_req:<hour>:<ip>
         print(f"ip_req:{hour}:{ip}\t1")
 
-        # 6. Đếm lỗi theo endpoint -> Key: endpoint_err:<endpoint>
+        # 6. Đếm lỗi theo endpoint và theo IP
         if status_code >= 400:
             print(f"endpoint_err:{endpoint}\t1")
+            print(f"ip_err:{hour}:{ip}\t1")
 
 if __name__ == "__main__":
     main()
