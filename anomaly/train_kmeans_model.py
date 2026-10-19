@@ -59,14 +59,19 @@ def collect_historical_training_data():
     """Gom dữ liệu tổng hợp của nhiều ngày từ HDFS hoặc file local."""
     all_features = []
 
-    # 1. Quét output trên HDFS: /data/output/*/part-*
+    # 1. Quét danh sách các thư mục ngày trên HDFS: /data/output/*/part-*
     try:
-        proc = subprocess.run(["hdfs", "dfs", "-cat", "/data/output/*/part-*"], capture_output=True, text=True)
-        if proc.returncode == 0 and proc.stdout.strip():
-            feats = parse_lines_to_features(proc.stdout.splitlines())
-            if feats:
-                all_features.extend(feats)
-                print(f"[INFO] Nạp {len(feats)} mẫu từ HDFS.")
+        ls_proc = subprocess.run(["hdfs", "dfs", "-ls", "-d", "/data/output/*"], capture_output=True, text=True)
+        if ls_proc.returncode == 0 and ls_proc.stdout.strip():
+            day_dirs = [line.split()[-1] for line in ls_proc.stdout.splitlines() if "/data/output/" in line]
+            for day_dir in day_dirs:
+                cat_proc = subprocess.run(["hdfs", "dfs", "-cat", f"{day_dir}/part-*"], capture_output=True, text=True)
+                if cat_proc.returncode == 0 and cat_proc.stdout.strip():
+                    feats = parse_lines_to_features(cat_proc.stdout.splitlines())
+                    if feats:
+                        all_features.extend(feats)
+                        day_name = os.path.basename(day_dir)
+                        print(f"[INFO] Nạp {len(feats)} khung giờ từ ngày {day_name} trên HDFS.")
     except Exception:
         pass
 
@@ -78,7 +83,7 @@ def collect_historical_training_data():
                 feats = parse_lines_to_features(f.readlines())
                 if feats:
                     all_features.extend(feats)
-                    print(f"[INFO] Nạp {len(feats)} mẫu từ: {fpath}")
+                    print(f"[INFO] Nạp {len(feats)} khung giờ từ: {fpath}")
         except Exception:
             continue
 

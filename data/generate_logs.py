@@ -68,10 +68,13 @@ def get_logs_per_hour(total_logs):
 # =============================================================================
 # BƯỚC 2: Hàm tạo 1 log entry bình thường
 # =============================================================================
-def make_normal_log(hour, minute, second, ip_pool):
+# BƯỚC 2: Hàm tạo 1 log entry bình thường
+# =============================================================================
+def make_normal_log(hour, minute, second, ip_pool, date_str=None):
     """Tạo 1 log entry ngẫu nhiên trong giờ 'hour'."""
+    cur_date = date_str or LOG_DATE
     dt = datetime(
-        *[int(x) for x in LOG_DATE.split("-")],
+        *[int(x) for x in cur_date.split("-")],
         hour, minute, second,
         tzinfo=timezone.utc
     )
@@ -116,10 +119,11 @@ def make_normal_log(hour, minute, second, ip_pool):
 # =============================================================================
 # BƯỚC 3: Hàm tạo 1 log entry bất thường (anomaly)
 # =============================================================================
-def make_anomaly_log(hour, minute, second, flood_ip=None):
+def make_anomaly_log(hour, minute, second, flood_ip=None, date_str=None):
     """Tạo 1 log bất thường: lỗi hệ thống, thời gian xử lý chậm, hoặc IP spam."""
+    cur_date = date_str or LOG_DATE
     dt = datetime(
-        *[int(x) for x in LOG_DATE.split("-")],
+        *[int(x) for x in cur_date.split("-")],
         hour, minute, second,
         tzinfo=timezone.utc
     )
@@ -154,10 +158,11 @@ def make_anomaly_log(hour, minute, second, flood_ip=None):
 # =============================================================================
 # BƯỚC 4: Hàm tạo bản ghi dữ liệu rác/hỏng (Corrupted Record Injection)
 # =============================================================================
-def make_corrupted_raw_line(hour, minute, second, ip_pool):
+def make_corrupted_raw_line(hour, minute, second, ip_pool, date_str=None):
     """Tạo 1 dòng dữ liệu rác/hỏng để kiểm thử tầng tiền xử lý cleaner_mapper.py."""
+    cur_date = date_str or LOG_DATE
     corrupt_type = random.choice(["malformed_json", "missing_field", "invalid_ip", "bad_datatype"])
-    dt = datetime(*[int(x) for x in LOG_DATE.split("-")], hour, minute, second, tzinfo=timezone.utc)
+    dt = datetime(*[int(x) for x in cur_date.split("-")], hour, minute, second, tzinfo=timezone.utc)
     ts = dt.isoformat()
 
     if corrupt_type == "malformed_json":
@@ -170,11 +175,11 @@ def make_corrupted_raw_line(hour, minute, second, ip_pool):
     elif corrupt_type == "invalid_ip":
         # IP chứa ký tự lạ hoặc vượt dải 255
         bad_ip = random.choice(["999.999.999.999", "192.168.1.abc", "not_an_ip", "300.1.2.3"])
-        rec = make_normal_log(hour, minute, second, [bad_ip])
+        rec = make_normal_log(hour, minute, second, [bad_ip], date_str=cur_date)
         return json.dumps(rec)
     else:
         # Kiểu dữ liệu sai: status_code là chuỗi chữ
-        rec = make_normal_log(hour, minute, second, ip_pool)
+        rec = make_normal_log(hour, minute, second, ip_pool, date_str=cur_date)
         rec["status_code"] = "SERVER_ERROR"
         return json.dumps(rec)
 
@@ -182,10 +187,19 @@ def make_corrupted_raw_line(hour, minute, second, ip_pool):
 # =============================================================================
 # BƯỚC 5: Main — Tạo toàn bộ tập dữ liệu lớn
 # =============================================================================
-def generate_logs():
+def generate_logs(date_str=None, total_logs=None):
+    cur_date = date_str or LOG_DATE
+    target_output_file = os.path.join(SPOOL_DIR, f"web_access_{cur_date}.log")
+
     # 1. Xác định số lượng log
-    actual_total_logs = TOTAL_LOGS if TOTAL_LOGS != 50000 else random.randint(150000, 180000)
-    print(f"[INFO] Sinh {actual_total_logs:,} bản ghi log cho ngày {LOG_DATE}...")
+    if total_logs is not None:
+        actual_total_logs = int(total_logs)
+    elif TOTAL_LOGS != 50000:
+        actual_total_logs = TOTAL_LOGS
+    else:
+        actual_total_logs = random.randint(150000, 180000)
+
+    print(f"[INFO] Sinh {actual_total_logs:,} bản ghi log cho ngày {cur_date}...")
 
     # 2. Khung giờ bất thường
     if ANOMALY_START_HOUR >= 0 and ANOMALY_END_HOUR > ANOMALY_START_HOUR:
@@ -233,7 +247,7 @@ def generate_logs():
 
             # Chèn 1% dữ liệu lỗi để kiểm thử bước làm sạch
             if random.random() < 0.01:
-                corrupted_line = make_corrupted_raw_line(hour, minute, second, ip_pool)
+                corrupted_line = make_corrupted_raw_line(hour, minute, second, ip_pool, date_str=cur_date)
                 all_raw_lines.append((hour, minute, second, corrupted_line))
                 corrupted_count += 1
                 continue
@@ -241,11 +255,11 @@ def generate_logs():
             if is_anomaly_hour:
                 if random.random() < 0.65:
                     chosen_flood_ip = random.choice(flood_ips) if random.random() < 0.50 else None
-                    log_obj = make_anomaly_log(hour, minute, second, flood_ip=chosen_flood_ip)
+                    log_obj = make_anomaly_log(hour, minute, second, flood_ip=chosen_flood_ip, date_str=cur_date)
                 else:
-                    log_obj = make_normal_log(hour, minute, second, ip_pool)
+                    log_obj = make_normal_log(hour, minute, second, ip_pool, date_str=cur_date)
             else:
-                log_obj = make_normal_log(hour, minute, second, ip_pool)
+                log_obj = make_normal_log(hour, minute, second, ip_pool, date_str=cur_date)
 
             all_raw_lines.append((hour, minute, second, json.dumps(log_obj)))
 
@@ -253,29 +267,32 @@ def generate_logs():
     print(f"\n[INFO] Sắp xếp {len(all_raw_lines):,} bản ghi theo thời gian...")
     all_raw_lines.sort(key=lambda x: (x[0], x[1], x[2]))
 
-    # Ghi ra file
-    os.makedirs(os.path.dirname(OUTPUT_FILE) if os.path.dirname(OUTPUT_FILE) else ".", exist_ok=True)
-    print(f"[INFO] Ghi dữ liệu vào {OUTPUT_FILE}...")
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    # Ghi ra file theo ngày chỉ định
+    os.makedirs(os.path.dirname(target_output_file) if os.path.dirname(target_output_file) else ".", exist_ok=True)
+    print(f"[INFO] Ghi dữ liệu vào {target_output_file}...")
+    with open(target_output_file, "w", encoding="utf-8") as f:
         for item in all_raw_lines:
             f.write(item[3] + "\n")
 
-    # Ghi vào data/fake_logs.json để tương thích
+    # Đồng thời ghi vào OUTPUT_FILE và data/fake_logs.json để tương thích
     try:
         from config.settings import LEGACY_OUTPUT_FILE
-        with open(LEGACY_OUTPUT_FILE, "w", encoding="utf-8") as f_legacy:
-            for item in all_raw_lines:
-                f_legacy.write(item[3] + "\n")
+        for extra_f in [OUTPUT_FILE, LEGACY_OUTPUT_FILE]:
+            if extra_f != target_output_file:
+                with open(extra_f, "w", encoding="utf-8") as f_ex:
+                    for item in all_raw_lines:
+                        f_ex.write(item[3] + "\n")
     except Exception:
         pass
 
     print(f"\n================================================================================")
     print(f" HOÀN TẤT SINH DỮ LIỆU LOG")
+    print(f" Ngày phân tích          : {cur_date}")
     print(f" Tổng số bản ghi sinh ra : {len(all_raw_lines):,} dòng")
     print(f" Bản ghi lỗi chèn vào    : {corrupted_count:,} dòng (để kiểm thử tiền xử lý)")
     print(f" Khung giờ bất thường    : {[f'{h:02d}:00' for h in anomaly_hours]}")
     print(f" IP gửi yêu cầu quá tải  : {flood_ips}")
-    print(f" File lưu trữ            : {OUTPUT_FILE}")
+    print(f" File lưu trữ            : {target_output_file}")
     print(f"================================================================================")
 
 
@@ -295,7 +312,7 @@ def generate_continuous_logs():
         with open(continuous_file, "a", encoding="utf-8") as f:
             while True:
                 now = datetime.now()
-                log = make_normal_log(now.hour, now.minute, now.second, ip_pool)
+                log = make_normal_log(now.hour, now.minute, now.second, ip_pool, date_str=now.strftime("%Y-%m-%d"))
                 log["timestamp"] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
                 f.write(json.dumps(log) + "\n")
                 f.flush()
@@ -308,8 +325,15 @@ def generate_continuous_logs():
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] in ["--continuous", "-c", "--stream"]:
+    import argparse
+    parser = argparse.ArgumentParser(description="Sinh dữ liệu nhật ký web server")
+    parser.add_argument("--date", default=None, help="Ngày phân tích (YYYY-MM-DD)")
+    parser.add_argument("--logs", type=int, default=None, help="Số lượng log cần sinh")
+    parser.add_argument("--continuous", "-c", "--stream", action="store_true", help="Chế độ sinh log thời gian thực")
+    args, _ = parser.parse_known_args()
+
+    if args.continuous:
         generate_continuous_logs()
     else:
-        generate_logs()
+        generate_logs(date_str=args.date, total_logs=args.logs)
 

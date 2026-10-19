@@ -57,32 +57,55 @@ log-simulation/
 ├── Dockerfile          # Docker image đóng gói ứng dụng pipeline & Hadoop client
 ├── docker-compose.yml  # Cấu hình cụm Hadoop và Pipeline Runner
 ├── hadoop.env          # Biến môi trường cho cụm Hadoop
-├── requirements.txt    # Thư viện Machine Learning (scikit-learn, numpy)
-├── run_pipeline.sh     # Script chạy tự động toàn bộ pipeline trên YARN & HDFS (Terminal 2)
+├── init_history.sh     # Script khởi tạo dữ liệu lịch sử nhiều ngày (~200MB - 300MB)
+├── run_pipeline.sh     # Script chạy tự động pipeline hàng ngày trên YARN & HDFS (Terminal 2)
+├── requirements.txt    # Thư viện Machine Learning (scikit-learn, numpy, pyspark)
 └── README.md           # Hướng dẫn chi tiết
 ```
 
 ---
 
-## 3. Hướng Dẫn Vận Hành (Mô hình 2 Terminal chuẩn)
+## 3. Hướng Dẫn Vận Hành Từng Bước
 
-#### Terminal 1: Khởi động dịch vụ Apache Flume Ingestion (Chạy nền)
+### Bước 1 (Terminal 1): Khởi động dịch vụ Apache Flume
+Flume Agent cần chạy thường trực ở Terminal 1 để theo dõi thư mục `data/spool/` và tự động nạp log vào HDFS:
 ```bash
 bash flume/start_flume.sh
 ```
-*Terminal này sẽ thường trực lắng nghe thư mục `data/spool/`. Khi có log mới, Flume sẽ cuộn log nạp thẳng vào HDFS Raw Zone.*
 
-#### Terminal 2: Chạy Pipeline điều phối & phân tích tự động
+---
+
+### Bước 2 (Terminal 2): Khởi tạo dữ liệu lịch sử (~200 MB - 300 MB)
+Để có đủ dữ liệu lịch sử phục vụ việc huấn luyện mô hình KMeans, chạy script khởi tạo hàng loạt (mặc định 7 ngày, ~225 MB log; hoặc tùy chọn 10 ngày, ~320 MB):
 ```bash
-# Cài đặt thư viện Machine Learning:
-pip install -r requirements.txt
+# Tạo dữ liệu lịch sử 7 ngày (mỗi ngày 200.000 log, tổng ~225 MB):
+bash init_history.sh 7
 
-# Chạy toàn bộ pipeline:
+# (Tùy chọn) Tạo 10 ngày (~320 MB):
+# bash init_history.sh 10
+```
+*Script sẽ tự động lặp qua từng ngày: Sinh log $\rightarrow$ Flume nạp vào HDFS $\rightarrow$ Tiền xử lý Map-only trên YARN $\rightarrow$ MapReduce tổng hợp chỉ số lưu vào `/data/output/<DATE>/`.*
+
+---
+
+### Bước 3 (Terminal 2): Huấn luyện mô hình KMeans (Luồng 1)
+Sau khi đã có dữ liệu lịch sử trên HDFS, tiến hành huấn luyện mô hình:
+```bash
+python3 anomaly/train_kmeans_model.py
+```
+*Script sẽ đọc dữ liệu tổng hợp của tất cả các ngày từ HDFS `/data/output/*/part-*`, huấn luyện PySpark MLlib KMeans ($K=2$), tính điểm Silhouette và lưu mô hình lên HDFS tại `/models/kmeans_anomaly_model`.*
+
+---
+
+### Bước 4 (Terminal 2): Vận hành xử lý lô hàng ngày (Luồng 2)
+Mỗi ngày, chạy pipeline phân tích lô cho ngày hiện tại:
+```bash
 bash run_pipeline.sh
 
-# (Tùy chọn) Chạy cho ngày cụ thể:
-# bash run_pipeline.sh 2026-10-01
+# (Tùy chọn) Chạy cho một ngày cụ thể:
+# bash run_pipeline.sh 2026-10-08
 ```
+*Pipeline sẽ sinh log ngày hôm nay $\rightarrow$ Flume nạp vào HDFS $\rightarrow$ Tiền xử lý $\rightarrow$ MapReduce $\rightarrow$ Nạp mô hình có sẵn từ HDFS để thẩm định và xuất báo cáo lên `/data/reports/<LOG_DATE>/anomaly_report.json`.*
 
 ---
 
