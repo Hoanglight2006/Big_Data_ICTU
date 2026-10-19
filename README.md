@@ -31,15 +31,18 @@ Hệ thống hoạt động theo mô hình **Batch Processing ngoại tuyến (O
        │
        ▼
 [YARN MapReduce Aggregation]
-       │ (Tính toán phân tán trên cụm máy chủ YARN)
+       │ (Tính toán phân tán chỉ số lưu lượng, lỗi, độ trễ)
        ▼
 [HDFS Output Zone] (/data/output/YYYY-MM-DD/part-*)
        │
-       ▼
-[Rule-based Anomaly Detector]
-       │ (Phân tích trực tiếp từ HDFS stream)
-       ▼
-[HDFS Reports Zone] (/data/reports/YYYY-MM-DD/anomaly_report.json)
+       ├──► [Luồng 1 (Lịch sử N ngày)]: Huấn luyện PySpark MLlib KMeans ──► [HDFS Model] (/models/kmeans_anomaly_model)
+       │                                                                            │
+       └──► [Luồng 2 (Ngày hôm nay)]: Bộ luật 6 Rule (Lọc thô)                     │
+                                           │                                        │
+                                           └──► Thẩm định & Loại bỏ báo động giả ◄──┘
+                                                       │
+                                                       ▼
+                                       [HDFS Reports Zone] (/data/reports/YYYY-MM-DD/anomaly_report.json)
 ```
 
 ---
@@ -53,13 +56,13 @@ log-simulation/
 ├── flume/              # Cấu hình Apache Flume Agent nạp HDFS (start_flume.sh cho Terminal 1)
 ├── preprocessing/      # Tiền xử lý phân tán Map-only trên YARN 
 ├── mapreduce/          # Hadoop Streaming Mapper & Reducer trên YARN
-├── anomaly/            # Bộ lọc Rule-based & Mô hình Machine Learning (KMeans) tăng độ chính xác
+├── anomaly/            # Bộ lọc Rule-based & Mô hình Machine Learning (PySpark KMeans)
 ├── Dockerfile          # Docker image đóng gói ứng dụng pipeline & Hadoop client
 ├── docker-compose.yml  # Cấu hình cụm Hadoop và Pipeline Runner
 ├── hadoop.env          # Biến môi trường cho cụm Hadoop
 ├── init_history.sh     # Script khởi tạo dữ liệu lịch sử nhiều ngày (~200MB - 300MB)
 ├── run_pipeline.sh     # Script chạy tự động pipeline hàng ngày trên YARN & HDFS (Terminal 2)
-├── requirements.txt    # Thư viện Machine Learning (scikit-learn, numpy, pyspark)
+├── requirements.txt    # Thư viện Machine Learning (pyspark, numpy)
 └── README.md           # Hướng dẫn chi tiết
 ```
 
