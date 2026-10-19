@@ -47,40 +47,33 @@ def main():
     target_log = os.path.join(SPOOL_DIR, f"web_access_{LOG_DATE}.log")
     completed_log = f"{target_log}.COMPLETED"
 
-    # 2. Kiểm tra tiến trình Apache Flume Agent ở Terminal 1
-    print(f"\n[2/3] Kiểm tra Apache Flume Agent ở Terminal 1...")
+    # 2. Chờ Apache Flume Agent ở Terminal 1 nạp file vào HDFS
+    print(f"\n[2/3] Chờ Apache Flume Agent (Terminal 1) xử lý và nạp log vào HDFS...")
     flume_ingested = False
 
-    # Chờ tối đa 15 giây để Flume xử lý file
-    for i in range(15):
+    # Chờ tối đa 30 giây để Flume Agent đọc file spool và ghi vào HDFS
+    max_wait_seconds = 30
+    for second in range(1, max_wait_seconds + 1):
         if os.path.exists(completed_log) or check_hdfs_files():
             flume_ingested = True
             break
+        if second % 5 == 0:
+            print(f"      ... đang chờ Flume nạp dữ liệu ({second}/{max_wait_seconds}s)")
         time.sleep(1)
 
-    if flume_ingested:
-        print("      [OK] Apache Flume Agent đã nạp file vào HDFS.")
-    else:
-        print("      [CẢNH BÁO] Không thấy Flume Agent ở Terminal 1.")
-        print("                 Nạp trực tiếp qua lệnh HDFS put...")
-        
-        # Tìm file nguồn để nạp
-        source_file = None
-        if os.path.exists(target_log):
-            source_file = target_log
-        elif os.path.exists(completed_log):
-            source_file = completed_log
-        elif os.path.exists(OUTPUT_FILE):
-            source_file = OUTPUT_FILE
+    if not flume_ingested:
+        print("\n" + "=" * 65)
+        print(" [LỖI] Dữ liệu chưa được nạp vào HDFS bởi Apache Flume!")
+        print(" Hệ thống yêu cầu Apache Flume hoạt động thực tế.")
+        print(" Hãy mở Terminal 1 và khởi động Flume Agent trước:")
+        print("     bash flume/start_flume.sh")
+        print("=" * 65)
+        sys.exit(1)
 
-        if not source_file:
-            print(f"[LỖI] Không tìm thấy file log tại {SPOOL_DIR}")
-            sys.exit(1)
+    print("      [OK] Apache Flume Agent đã nạp log vào HDFS thành công.")
 
-        run_command(["hdfs", "dfs", "-put", "-f", source_file, f"{HDFS_RAW_DIR}/access.log"])
-
-    # 3. Xác nhận kết quả
-    print(f"\n[3/3] Danh sách file trên HDFS Raw:")
+    # 3. Xác nhận kết quả trên HDFS
+    print(f"\n[3/3] Danh sách file do Flume nạp tại HDFS Raw:")
     run_command(["hdfs", "dfs", "-ls", HDFS_RAW_DIR])
 
 if __name__ == "__main__":
