@@ -39,7 +39,6 @@
 ```bash
 spark-submit --master yarn anomaly/train_kmeans_model.py
 ```
-*(Hoặc chạy test cục bộ: `python3 anomaly/train_kmeans_model.py`)*
 
 ### 2. Vận hành thẩm định lô & xuất báo cáo (Luồng 2):
 ```bash
