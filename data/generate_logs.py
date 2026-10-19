@@ -267,23 +267,12 @@ def generate_logs(date_str=None, total_logs=None):
     print(f"\n[INFO] Sắp xếp {len(all_raw_lines):,} bản ghi theo thời gian...")
     all_raw_lines.sort(key=lambda x: (x[0], x[1], x[2]))
 
-    # Ghi ra file theo ngày chỉ định
+    # Ghi ra thư mục spool để Apache Flume nạp vào HDFS
     os.makedirs(os.path.dirname(target_output_file) if os.path.dirname(target_output_file) else ".", exist_ok=True)
     print(f"[INFO] Ghi dữ liệu vào {target_output_file}...")
     with open(target_output_file, "w", encoding="utf-8") as f:
         for item in all_raw_lines:
             f.write(item[3] + "\n")
-
-    # Đồng thời ghi vào OUTPUT_FILE và data/fake_logs.json để tương thích
-    try:
-        from config.settings import LEGACY_OUTPUT_FILE
-        for extra_f in [OUTPUT_FILE, LEGACY_OUTPUT_FILE]:
-            if extra_f != target_output_file:
-                with open(extra_f, "w", encoding="utf-8") as f_ex:
-                    for item in all_raw_lines:
-                        f_ex.write(item[3] + "\n")
-    except Exception:
-        pass
 
     print(f"\n================================================================================")
     print(f" HOÀN TẤT SINH DỮ LIỆU LOG")

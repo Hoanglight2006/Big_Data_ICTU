@@ -17,9 +17,8 @@ from config.settings import (
     MAX_RESPONSE_TIME_MS
 )
 
-RESULTS_FILE = "data/mapreduce_results.txt"
-REPORT_OUTPUT_FILE = "data/anomaly_report.json"
-DAILY_REPORT_OUTPUT_FILE = f"data/anomaly_report_{LOG_DATE}.json"
+import argparse
+import subprocess
 
 def calculate_stats(values):
     """Tính Mean và Standard Deviation (độ lệch chuẩn)."""
@@ -31,64 +30,40 @@ def calculate_stats(values):
     std_dev = math.sqrt(variance)
     return mean, std_dev
 
-import argparse
-import subprocess
-
 def load_mapreduce_lines():
     """
-    Đọc kết quả MapReduce từ nhiều nguồn theo thứ tự ưu tiên:
-    1. Stream stdin (piped từ lệnh hdfs dfs -cat)
-    2. Đọc trực tiếp từ thư mục HDFS (--hdfs /data/output/<LOG_DATE>)
-    3. Đọc từ file local (fallback)
+    Đọc kết quả MapReduce trực tiếp từ HDFS:
+    1. Stream stdin (nếu piped từ lệnh: hdfs dfs -cat ... | python3 detector.py)
+    2. Hoặc đọc trực tiếp từ thư mục HDFS (/data/output/<LOG_DATE>/part-*)
     """
     parser = argparse.ArgumentParser(description="Rule-based Anomaly Detector")
     parser.add_argument("--hdfs", default=None, help="Đường dẫn HDFS chứa output MapReduce")
-    parser.add_argument("--file", default=None, help="Đường dẫn file kết quả local")
     parser.add_argument("--date", default=LOG_DATE, help="Ngày phân tích (YYYY-MM-DD)")
     args, _ = parser.parse_known_args()
     date_str = args.date
-    lines = []
-    if args.file and os.path.exists(args.file):
-        for enc in ["utf-8-sig", "utf-8", "utf-16", "cp1252"]:
-            try:
-                with open(args.file, "r", encoding=enc) as f:
-                    lines = f.readlines()
-                return lines, date_str
-            except Exception:
-                continue
 
-    # 2. Kiểm tra stream stdin (chỉ khi có pipe thực sự)
+    # 1. Kiểm tra stream stdin (chỉ khi có pipe thực sự)
     if not sys.stdin.isatty():
         try:
-            import msvcrt
-            # Trên Windows tránh block nếu không có pipe
-        except ImportError:
+            stdin_data = sys.stdin.read().strip()
+            if stdin_data:
+                return stdin_data.splitlines(), date_str
+        except Exception:
             pass
 
-    # 2. Đọc trực tiếp từ HDFS không qua file trung gian
+    # 2. Đọc trực tiếp từ HDFS
     hdfs_target = args.hdfs or os.getenv("HDFS_OUTPUT_DIR") or f"/data/output/{date_str}"
     try:
         proc = subprocess.run(["hdfs", "dfs", "-cat", f"{hdfs_target}/part-*"],
                               capture_output=True, text=True)
         if proc.returncode == 0 and proc.stdout.strip():
-            lines = proc.stdout.splitlines()
-            return lines, date_str
+            return proc.stdout.splitlines(), date_str
     except Exception:
         pass
 
-    # 3. Fallback đọc file local nếu có
-    local_target = args.file or RESULTS_FILE
-    if os.path.exists(local_target):
-        for enc in ["utf-8-sig", "utf-8", "utf-16", "cp1252"]:
-            try:
-                with open(local_target, "r", encoding=enc) as f:
-                    lines = f.readlines()
-                break
-            except Exception:
-                continue
-        return lines, date_str
-
-    print(f"[ERROR] Không tìm thấy kết quả MapReduce trên HDFS ({hdfs_target}) hoặc file local ({local_target}).")
+    print(f"\n[LỖI] Không tìm thấy kết quả MapReduce trên HDFS: {hdfs_target}")
+    print(f"      Vui lòng chạy bước MapReduce trên YARN trước:")
+    print(f"      bash mapreduce/run_job.sh {date_str}\n")
     sys.exit(1)
 
 def parse_mapreduce_data(lines):
@@ -285,7 +260,7 @@ def detect_anomalies(data, date_str=LOG_DATE):
 
     report_json_str = json.dumps(report_data, indent=2, ensure_ascii=False)
 
-    # 1. Lưu trực tiếp lên HDFS (Không cần tải file về máy)
+    # Lưu trực tiếp lên HDFS
     hdfs_report_dir = f"/data/reports/{date_str}"
     try:
         subprocess.run(["hdfs", "dfs", "-mkdir", "-p", hdfs_report_dir], capture_output=True)
@@ -294,19 +269,8 @@ def detect_anomalies(data, date_str=LOG_DATE):
         if put_proc.returncode == 0:
             print(f"[INFO] Báo cáo bất thường đã được lưu trực tiếp trên HDFS:")
             print(f"       -> {hdfs_report_dir}/anomaly_report.json")
-    except Exception:
-        pass
-
-    # 2. Lưu fallback local nếu thư mục data/ có sẵn
-    if os.path.exists("data"):
-        try:
-            with open(REPORT_OUTPUT_FILE, "w", encoding="utf-8") as f:
-                f.write(report_json_str)
-            daily_file = f"data/anomaly_report_{date_str}.json"
-            with open(daily_file, "w", encoding="utf-8") as f:
-                f.write(report_json_str)
-        except Exception:
-            pass
+    except Exception as e:
+        print(f"[LỖI] Không thể lưu báo cáo lên HDFS: {e}")
 
 if __name__ == "__main__":
     lines, date_str = load_mapreduce_lines()

@@ -58,7 +58,7 @@ def collect_historical_training_data():
     """Gom dữ liệu tổng hợp của nhiều ngày từ HDFS hoặc file local."""
     all_features = []
 
-    # 1. Quét danh sách các thư mục ngày trên HDFS: /data/output/*/part-*
+    # Quét danh sách các thư mục ngày trên HDFS: /data/output/*/part-*
     try:
         ls_proc = subprocess.run(["hdfs", "dfs", "-ls", "-d", "/data/output/*"], capture_output=True, text=True)
         if ls_proc.returncode == 0 and ls_proc.stdout.strip():
@@ -71,20 +71,8 @@ def collect_historical_training_data():
                         all_features.extend(feats)
                         day_name = os.path.basename(day_dir)
                         print(f"[INFO] Nạp {len(feats)} khung giờ từ ngày {day_name} trên HDFS.")
-    except Exception:
-        pass
-
-    # 2. Quét file local (data/mapreduce_results*.txt)
-    local_files = glob.glob("data/mapreduce_results*.txt")
-    for fpath in local_files:
-        try:
-            with open(fpath, "r", encoding="utf-8") as f:
-                feats = parse_lines_to_features(f.readlines())
-                if feats:
-                    all_features.extend(feats)
-                    print(f"[INFO] Nạp {len(feats)} khung giờ từ: {fpath}")
-        except Exception:
-            continue
+    except Exception as e:
+        print(f"[CẢNH BÁO] Không thể đọc dữ liệu từ HDFS: {e}")
 
     return all_features
 
