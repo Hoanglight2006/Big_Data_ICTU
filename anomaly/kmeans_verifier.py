@@ -64,11 +64,11 @@ def run_pyspark_kmeans(parsed_data, rule_anomalies):
         vec = Vectors.dense([req, err_rate, c5xx_rate, resp])
         rows.append(Row(hour=h, features=vec))
 
-    dataset = spark.createDataFrame(rows)
+    dataset = spark.createDataFrame(rows).cache()
 
     # Nạp mô hình từ HDFS
     model = load_kmeans_model(spark)
-    predictions = model.transform(dataset)
+    predictions = model.transform(dataset).cache()
 
     # Đánh giá phân cụm
     evaluator = ClusteringEvaluator(featuresCol="features", predictionCol="prediction")
