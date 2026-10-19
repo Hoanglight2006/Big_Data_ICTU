@@ -66,8 +66,6 @@ log-simulation/
 
 ## 3. Hướng Dẫn Vận Hành (Mô hình 2 Terminal chuẩn)
 
-Để quay video demo trực quan và vận hành Apache Flume thật:
-
 #### Terminal 1: Khởi động dịch vụ Apache Flume Ingestion (Chạy nền)
 ```bash
 bash flume/start_flume.sh
@@ -90,9 +88,9 @@ bash run_pipeline.sh
 
 ## 4. Cơ Chế Phát Hiện Bất Thường & Tăng Độ Chính Xác (Rule + KMeans ML)
 
-Hệ thống kết hợp giữa **Bộ luật Heuristic** và **Mô hình Học máy KMeans (Scikit-learn MLlib)** theo quy trình 2 giai đoạn:
+Hệ thống kết hợp giữa **Bộ luật** và **Mô hình Học máy KMeans** theo quy trình 2 giai đoạn:
 
-* **Giai đoạn 1 (Bộ luật Heuristic - Lọc thô):**
+* **Giai đoạn 1 (Bộ luật - Lọc thô):**
   1. *Quy tắc 1 (Lượng truy cập tăng vọt):* Số lượng yêu cầu trong một giờ vượt ngưỡng $Mean + 2 \times StdDev$.
   2. *Quy tắc 2 (Tỉ lệ log lỗi cao):* Số log báo lỗi (`ERROR`) trong một giờ chiếm hơn 5% tổng lượng truy cập.
   3. *Quy tắc 3 (Tỉ lệ lỗi máy chủ cao):* Các mã lỗi 500/503 chiếm hơn 5% lượng truy cập trong giờ.
