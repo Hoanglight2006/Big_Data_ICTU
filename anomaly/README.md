@@ -15,15 +15,21 @@
 
 ## 2. Các Tệp Tin
 
-- **`detector.py`**:
-  - Nhận dữ liệu trực tiếp từ HDFS (`/data/output/<LOG_DATE>/part-*`) hoặc qua cổng đầu vào `sys.stdin`.
-  - Áp dụng 6 quy tắc đánh giá để lọc thô các dấu hiệu nghi vấn ban đầu.
-  - Phối hợp với `kmeans_verifier.py` để thẩm định và xuất báo cáo JSON lên HDFS: `/data/reports/<LOG_DATE>/anomaly_report.json`.
+- **`train_kmeans_model.py` (Luồng 1 - Huấn luyện ngoại tuyến):**
+  - Thu thập dữ liệu tổng hợp lịch sử từ nhiều ngày (HDFS `/data/output/*` hoặc local).
+  - Áp dụng PySpark MLlib KMeans (`from pyspark.ml.clustering import KMeans`).
+  - Đánh giá Silhouette score, xác định trọng tâm các cụm (`clusterCenters`).
+  - Lưu mô hình trực tiếp lên HDFS: `/models/kmeans_anomaly_model`.
 
-- **`kmeans_verifier.py`**:
-  - Sử dụng thuật toán phân cụm KMeans từ thư viện Machine Learning (`sklearn.cluster.KMeans`, `StandardScaler`).
-  - Phân tích đa chiều trên 24 khung giờ và các IP nghi vấn.
-  - Đo khoảng cách tới tâm cụm bình thường để loại bỏ báo động giả (False Positives) của Rule, nâng cao độ chính xác của ứng dụng.
+- **`kmeans_verifier.py` (Luồng 2 - Thẩm định lô hàng ngày):**
+  - Nạp mô hình đã lưu từ HDFS (`KMeansModel.load`).
+  - Thẩm định dữ liệu lô ngày hôm nay trong vài giây (không tốn thời gian train lại).
+  - Loại bỏ các báo động giả (False Positives) của Rule, nâng cao độ chính xác của ứng dụng.
+
+- **`detector.py`:**
+  - Nhận dữ liệu trực tiếp từ HDFS (`/data/output/<LOG_DATE>/part-*`).
+  - Áp dụng 6 quy tắc đánh giá để lọc thô các dấu hiệu nghi vấn ban đầu.
+  - Phối hợp với `kmeans_verifier.py` để xuất báo cáo JSON hoàn chỉnh lên HDFS: `/data/reports/<LOG_DATE>/anomaly_report.json`.
 
 ---
 

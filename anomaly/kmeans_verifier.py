@@ -1,8 +1,8 @@
 # =============================================================================
-# anomaly/kmeans_verifier.py — Thẩm định & Tăng độ chính xác bằng PySpark MLlib KMeans
+# anomaly/kmeans_verifier.py — LUỒNG 2: THẨM ĐỊNH LÔ HÀNG NGÀY BẰNG MÔ HÌNH ĐÃ LƯU
 #
-# Chuẩn theo mẫu bài học: ~/bigdata/spark-3.5.5/examples/src/main/python/ml/kmeans_example.py
-# Áp dụng: from pyspark.ml.clustering import KMeans, ClusteringEvaluator
+# Nhiệm vụ: Nạp mô hình KMeans đã huấn luyện từ HDFS (hoặc local) để thẩm định
+#            nhanh dữ liệu lô ngày hôm nay, loại bỏ báo động giả của Rule.
 # =============================================================================
 
 import os
@@ -12,18 +12,49 @@ from collections import defaultdict
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
+HDFS_MODEL_PATH = "hdfs://localhost:9000/models/kmeans_anomaly_model"
+LOCAL_MODEL_PATH = "data/models/kmeans_anomaly_model"
+
+def load_or_train_kmeans_model(spark, dataset):
+    """Nạp mô hình KMeans từ HDFS/Local; nếu chưa có thì tự động huấn luyện và lưu lại."""
+    from pyspark.ml.clustering import KMeans, KMeansModel
+
+    # 1. Thử nạp từ HDFS
+    try:
+        model = KMeansModel.load(HDFS_MODEL_PATH)
+        print(f" [INFO] Đã nạp thành công mô hình KMeans từ HDFS ({HDFS_MODEL_PATH}).")
+        return model
+    except Exception:
+        pass
+
+    # 2. Thử nạp từ Local
+    if os.path.exists(LOCAL_MODEL_PATH):
+        try:
+            model = KMeansModel.load(LOCAL_MODEL_PATH)
+            print(f" [INFO] Đã nạp thành công mô hình KMeans từ Local ({LOCAL_MODEL_PATH}).")
+            return model
+        except Exception:
+            pass
+
+    # 3. Nếu chưa có mô hình: Huấn luyện cơ sở lần đầu và lưu lại
+    print(" [WARN] Chưa tìm thấy mô hình có sẵn trên HDFS. Đang tự động huấn luyện lần đầu...")
+    kmeans = KMeans().setK(2).setSeed(1).setFeaturesCol("features").setPredictionCol("prediction")
+    model = kmeans.fit(dataset)
+    try:
+        model.write().overwrite().save(LOCAL_MODEL_DIR if 'LOCAL_MODEL_DIR' in globals() else LOCAL_MODEL_PATH)
+        model.write().overwrite().save(HDFS_MODEL_PATH)
+        print(" [INFO] Đã lưu mô hình mới lên HDFS cho các ngày tiếp theo.")
+    except Exception:
+        pass
+    return model
+
 def run_pyspark_kmeans(parsed_data, rule_anomalies):
-    """
-    Huấn luyện mô hình KMeans bằng PySpark MLlib theo đúng mẫu kmeans_example.py của Spark
-    để phân cụm và thẩm định lại kết quả của Rule.
-    """
+    """Thực thi suy luận lô hàng ngày bằng PySpark MLlib KMeans."""
     from pyspark.sql import SparkSession
-    from pyspark.ml.clustering import KMeans
     from pyspark.ml.evaluation import ClusteringEvaluator
     from pyspark.ml.linalg import Vectors
     from pyspark.sql import Row
 
-    # 1. Khởi tạo SparkSession
     spark = SparkSession\
         .builder\
         .appName("LogAnomaly_KMeansVerifier")\
@@ -41,8 +72,7 @@ def run_pyspark_kmeans(parsed_data, rule_anomalies):
 
     hours = sorted([f"{h:02d}" for h in range(24)])
 
-    # 2. Xây dựng tập dữ liệu vector đặc trưng cho 24 khung giờ
-    # Đặc trưng: [Lưu lượng, Tỉ lệ lỗi %, Tỉ lệ 5xx %, Độ trễ ms]
+    # Tạo vector đặc trưng cho lô ngày hôm nay
     rows = []
     for h in hours:
         req = float(hour_reqs.get(h, 0))
@@ -58,34 +88,29 @@ def run_pyspark_kmeans(parsed_data, rule_anomalies):
 
     dataset = spark.createDataFrame(rows)
 
-    # 3. Trains a k-means model (chuẩn theo mẫu kmeans_example.py)
-    kmeans = KMeans().setK(2).setSeed(1).setFeaturesCol("features").setPredictionCol("prediction")
-    model = kmeans.fit(dataset)
+    # Nạp mô hình đã lưu từ HDFS
+    model = load_or_train_kmeans_model(spark, dataset)
 
-    # 4. Make predictions
+    # Dự đoán phân cụm cho dữ liệu lô ngày hôm nay
     predictions = model.transform(dataset)
 
-    # 5. Evaluate clustering by computing Silhouette score
+    # Đánh giá Silhouette Score
     evaluator = ClusteringEvaluator(featuresCol="features", predictionCol="prediction")
     silhouette = evaluator.evaluate(predictions)
     print("\nSilhouette with squared euclidean distance = " + str(silhouette))
 
-    # 6. Shows the result.
     centers = model.clusterCenters()
     print("Cluster Centers: ")
     for center in centers:
         print(center)
 
-    # Xác định cụm nào là Cụm Dị biệt (cụm có lỗi và độ trễ cao hơn)
-    if (centers[0][1] + centers[0][3]) > (centers[1][1] + centers[1][3]):
-        anomaly_cluster = 0
-    else:
-        anomaly_cluster = 1
+    # Xác định cụm dị biệt
+    anomaly_cluster = 0 if (centers[0][1] + centers[0][3] > centers[1][1] + centers[1][3]) else 1
 
     pred_results = predictions.select("hour", "prediction").collect()
     cluster_map = {row["hour"]: row["prediction"] for row in pred_results}
 
-    # 7. Đối chiếu kết quả giữa Rule và KMeans để tăng độ chính xác
+    # Đối chiếu kết quả với Rule để tăng độ chính xác
     print("\n[1/2] Đối chiếu kết quả phân cụm PySpark KMeans cho 24 khung giờ:")
     print(f"{'Giờ':<6} | {'Cụm KMeans':<14} | {'Đánh giá thẩm định'}")
     print("-" * 80)
@@ -113,7 +138,7 @@ def run_pyspark_kmeans(parsed_data, rule_anomalies):
         badge = "[!]" if is_kmeans_anomaly else "   "
         print(f"{badge} {h}:00 | {cluster_name:<14} | {verdict}")
 
-    # 8. Thẩm định danh sách IP lưu lượng lớn (loại bỏ báo động giả)
+    # Thẩm định IP
     print("\n[2/2] Thẩm định các địa chỉ IP bị Rule nghi vấn:")
     ip_candidates = []
     for h, ip_map in ip_reqs.items():
@@ -142,7 +167,7 @@ def run_pyspark_kmeans(parsed_data, rule_anomalies):
     else:
         print("   Không có IP nào vượt ngưỡng nghi vấn.")
 
-    # 9. Đánh giá mức độ nâng cao độ chính xác
+    # Đánh giá tăng độ chính xác
     total_rule_flags = len(rule_anomalies)
     confirmed_count = len(verified_hours) + len(verified_ips)
     false_alarms = max(0, total_rule_flags - confirmed_count)
@@ -167,18 +192,15 @@ def run_pyspark_kmeans(parsed_data, rule_anomalies):
     }
 
 def verify_anomalies_with_kmeans(parsed_data, rule_anomalies):
-    """
-    Điểm vào chính: Chạy PySpark MLlib KMeans theo mẫu chuẩn,
-    có cơ chế fallback sklearn nếu môi trường máy trạm chưa nạp Java/Spark.
-    """
+    """Điểm vào chính: Nạp mô hình PySpark KMeans để thẩm định dữ liệu lô."""
     print("\n" + "=" * 80)
-    print(" GIAI ĐOẠN 2: THẨM ĐỊNH & NÂNG CAO ĐỘ CHÍNH XÁC BẰNG PYSPARK MLLIB KMEANS ")
+    print(" [LUỒNG 2] THẨM ĐỊNH LÔ HÀNG NGÀY BẰNG MÔ HÌNH PYSPARK KMEANS (HDFS) ")
     print("=" * 80)
 
     try:
         return run_pyspark_kmeans(parsed_data, rule_anomalies)
     except Exception as e:
-        print(f"[WARN] PySpark không khởi động được ({e}), tự động chuyển sang scikit-learn KMeans...")
+        print(f"[WARN] PySpark không khởi động được ({e}), tự động chuyển sang scikit-learn...")
         from sklearn.cluster import KMeans
         from sklearn.preprocessing import StandardScaler
         import numpy as np
@@ -187,8 +209,6 @@ def verify_anomalies_with_kmeans(parsed_data, rule_anomalies):
         hour_errs = parsed_data["hour_errors"]
         hour_5xx = parsed_data["hour_5xx"]
         hour_resp = parsed_data["hour_avg_resp"]
-        ip_reqs = parsed_data["ip_requests"]
-        ip_errs = parsed_data.get("ip_errors", defaultdict(lambda: defaultdict(int)))
 
         hours = sorted([f"{h:02d}" for h in range(24)])
         raw_matrix = []
@@ -203,27 +223,13 @@ def verify_anomalies_with_kmeans(parsed_data, rule_anomalies):
 
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(np.array(raw_matrix))
-
         km = KMeans(n_clusters=2, random_state=1, n_init=10).fit(X_scaled)
         centers = km.cluster_centers_
 
         anomaly_cluster = 0 if (centers[0][1] + centers[0][3] > centers[1][1] + centers[1][3]) else 1
-
-        print("Cluster Centers: ")
-        for c in centers:
-            print(c)
-
         verified_hours = [h for idx, h in enumerate(hours) if km.labels_[idx] == anomaly_cluster]
         confirmed_count = len(verified_hours)
         false_alarms = max(0, len(rule_anomalies) - confirmed_count)
-
-        print("\n" + "=" * 80)
-        print("                    ĐÁNH GIÁ TĂNG ĐỘ CHÍNH XÁC CỦA ỨNG DỤNG                    ")
-        print("=" * 80)
-        print(f"Tổng số cảnh báo nghi vấn ban đầu của Rule: {len(rule_anomalies)}")
-        print(f"Số cảnh báo sai (Báo động giả) KMeans đã loại bỏ: {false_alarms}")
-        print(f"Số lượng bất thường thực sự sau khi KMeans thẩm định: {confirmed_count}")
-        print("=" * 80)
 
         return {
             "silhouette_score": 0.85,
