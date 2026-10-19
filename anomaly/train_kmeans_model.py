@@ -107,9 +107,10 @@ def main():
         spark.sparkContext.setLogLevel("ERROR")
 
         rows = [Row(features=Vectors.dense(pt)) for pt in historical_data]
-        dataset = spark.createDataFrame(rows)
+        # Ghim tập dữ liệu trực tiếp trên RAM của các worker nodes để tối ưu tính toán lặp
+        dataset = spark.createDataFrame(rows).cache()
 
-        print("\n[2/5] Khởi tạo mô hình PySpark KMeans (K=2)...")
+        print("\n[2/5] Huấn luyện mô hình PySpark KMeans trên RAM (K=2)...")
         kmeans = KMeans().setK(2).setSeed(1).setFeaturesCol("features").setPredictionCol("prediction")
         model = kmeans.fit(dataset)
 
