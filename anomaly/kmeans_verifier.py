@@ -12,39 +12,19 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 HDFS_MODEL_PATH = "hdfs://localhost:9000/models/kmeans_anomaly_model"
-LOCAL_MODEL_PATH = "data/models/kmeans_anomaly_model"
 
-def load_or_train_kmeans_model(spark, dataset):
-    """Nạp mô hình KMeans từ HDFS hoặc local; nếu chưa có thì huấn luyện lần đầu."""
-    from pyspark.ml.clustering import KMeans, KMeansModel
-
-    # 1. Thử nạp từ HDFS
+def load_kmeans_model(spark):
+    """Nạp mô hình KMeans trực tiếp từ HDFS."""
+    from pyspark.ml.clustering import KMeansModel
     try:
         model = KMeansModel.load(HDFS_MODEL_PATH)
         print(f" [INFO] Nạp mô hình KMeans từ HDFS: {HDFS_MODEL_PATH}")
         return model
-    except Exception:
-        pass
-
-    # 2. Thử nạp từ local
-    if os.path.exists(LOCAL_MODEL_PATH):
-        try:
-            model = KMeansModel.load(LOCAL_MODEL_PATH)
-            print(f" [INFO] Nạp mô hình KMeans từ file local: {LOCAL_MODEL_PATH}")
-            return model
-        except Exception:
-            pass
-
-    # 3. Huấn luyện lần đầu nếu chưa có mô hình
-    print(" [INFO] Chưa có mô hình lưu sẵn. Khởi tạo và huấn luyện lần đầu...")
-    kmeans = KMeans().setK(2).setSeed(1).setFeaturesCol("features").setPredictionCol("prediction")
-    model = kmeans.fit(dataset)
-    try:
-        model.write().overwrite().save(LOCAL_MODEL_PATH)
-        model.write().overwrite().save(HDFS_MODEL_PATH)
-    except Exception:
-        pass
-    return model
+    except Exception as e:
+        print(f"\n[LỖI] Không thể nạp mô hình từ HDFS ({HDFS_MODEL_PATH}): {e}")
+        print("      Cần chạy Luồng 1 trước để huấn luyện và lưu mô hình lên HDFS:")
+        print("      spark-submit --master yarn anomaly/train_kmeans_model.py\n")
+        sys.exit(1)
 
 def run_pyspark_kmeans(parsed_data, rule_anomalies):
     """Phân cụm và thẩm định cảnh báo theo giờ và IP."""
@@ -86,8 +66,8 @@ def run_pyspark_kmeans(parsed_data, rule_anomalies):
 
     dataset = spark.createDataFrame(rows)
 
-    # Nạp mô hình
-    model = load_or_train_kmeans_model(spark, dataset)
+    # Nạp mô hình từ HDFS
+    model = load_kmeans_model(spark)
     predictions = model.transform(dataset)
 
     # Đánh giá phân cụm
@@ -189,47 +169,6 @@ def run_pyspark_kmeans(parsed_data, rule_anomalies):
 def verify_anomalies_with_kmeans(parsed_data, rule_anomalies):
     """Điểm vào chính: Gọi PySpark KMeans để thẩm định dữ liệu."""
     print("\n" + "=" * 70)
-    print(" [LUỒNG 2] THẨM ĐỊNH LÔ HÀNG NGÀY BẰNG MÔ HÌNH KMEANS ")
+    print(" [LUỒNG 2] THẨM ĐỊNH LÔ HÀNG NGÀY BẰNG MÔ HÌNH KMEANS TỪ HDFS ")
     print("=" * 70)
-
-    try:
-        return run_pyspark_kmeans(parsed_data, rule_anomalies)
-    except Exception as e:
-        print(f"[THÔNG BÁO] PySpark chưa nạp ({e}), dùng scikit-learn thay thế...")
-        from sklearn.cluster import KMeans
-        from sklearn.preprocessing import StandardScaler
-        import numpy as np
-
-        hour_reqs = parsed_data["hour_requests"]
-        hour_errs = parsed_data["hour_errors"]
-        hour_5xx = parsed_data["hour_5xx"]
-        hour_resp = parsed_data["hour_avg_resp"]
-
-        hours = sorted([f"{h:02d}" for h in range(24)])
-        raw_matrix = []
-        for h in hours:
-            req = float(hour_reqs.get(h, 0))
-            err = float(hour_errs.get(h, 0))
-            c5xx = float(hour_5xx.get(h, 0))
-            resp = float(hour_resp.get(h, 0.0))
-            err_r = (err / req * 100.0) if req > 0 else 0.0
-            c5xx_r = (c5xx / req * 100.0) if req > 0 else 0.0
-            raw_matrix.append([req, err_r, c5xx_r, resp])
-
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(np.array(raw_matrix))
-        km = KMeans(n_clusters=2, random_state=1, n_init=10).fit(X_scaled)
-        centers = km.cluster_centers_
-
-        anomaly_cluster = 0 if (centers[0][1] + centers[0][3] > centers[1][1] + centers[1][3]) else 1
-        verified_hours = [h for idx, h in enumerate(hours) if km.labels_[idx] == anomaly_cluster]
-        confirmed_count = len(verified_hours)
-        false_alarms = max(0, len(rule_anomalies) - confirmed_count)
-
-        return {
-            "silhouette_score": 0.85,
-            "kmeans_verified_hours": verified_hours,
-            "kmeans_verified_ips": [],
-            "false_alarms_filtered": false_alarms,
-            "final_confirmed_count": confirmed_count
-        }
+    return run_pyspark_kmeans(parsed_data, rule_anomalies)

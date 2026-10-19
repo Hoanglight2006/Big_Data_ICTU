@@ -14,7 +14,6 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 HDFS_MODEL_DIR = "/models/kmeans_anomaly_model"
-LOCAL_MODEL_DIR = "data/models/kmeans_anomaly_model"
 
 def parse_lines_to_features(lines):
     """Trích xuất vector [Traffic, Error_Rate, 5xx_Rate, Latency] theo từng giờ."""
@@ -138,36 +137,18 @@ def main():
         for idx, center in enumerate(centers):
             print(f"   Cụm {idx}: Traffic={center[0]:.0f}, Lỗi={center[1]:.2f}%, 5xx={center[2]:.2f}%, Trễ={center[3]:.1f}ms")
 
-        # 5. Lưu mô hình
-        print(f"\n[5/5] Lưu mô hình:")
-        os.makedirs(os.path.dirname(LOCAL_MODEL_DIR), exist_ok=True)
-        model.write().overwrite().save(LOCAL_MODEL_DIR)
-        print(f"   - Local: {LOCAL_MODEL_DIR}")
-
-        try:
-            hdfs_full_path = f"hdfs://localhost:9000{HDFS_MODEL_DIR}"
-            model.write().overwrite().save(hdfs_full_path)
-            print(f"   - HDFS : {hdfs_full_path}")
-        except Exception as e:
-            print(f"   (Lưu HDFS: {e})")
+        # 5. Lưu mô hình trực tiếp lên HDFS
+        print(f"\n[5/5] Lưu mô hình lên HDFS:")
+        hdfs_full_path = f"hdfs://localhost:9000{HDFS_MODEL_DIR}"
+        model.write().overwrite().save(hdfs_full_path)
+        print(f"   - HDFS : {hdfs_full_path}")
 
         spark.stop()
-        print("\n[INFO] Hoàn tất huấn luyện Luồng 1.")
+        print("\n[INFO] Hoàn tất huấn luyện Luồng 1 trên cụm.")
 
-    except ImportError:
-        print("[THÔNG BÁO] Chưa cài PySpark, dùng scikit-learn...")
-        from sklearn.cluster import KMeans
-        import pickle
-        import numpy as np
-
-        X = np.array(historical_data)
-        km = KMeans(n_clusters=2, random_state=1, n_init=10).fit(X)
-
-        os.makedirs("data/models", exist_ok=True)
-        with open("data/models/kmeans_sklearn.pkl", "wb") as f:
-            pickle.dump(km, f)
-
-        print("[INFO] Đã lưu mô hình tại data/models/kmeans_sklearn.pkl")
+    except Exception as e:
+        print(f"[LỖI] Quá trình huấn luyện PySpark thất bại: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
