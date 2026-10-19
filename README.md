@@ -50,41 +50,21 @@ Hệ thống hoạt động theo mô hình **Batch Processing ngoại tuyến (O
 log-simulation/
 ├── config/             # Cấu hình trung tâm (HDFS paths, thresholds, dynamic JARs)
 ├── data/               # Module sinh log web server
-├── flume/              # Cấu hình Apache Flume Agent nạp HDFS & Ingestion Runner
+├── flume/              # Cấu hình Apache Flume Agent nạp HDFS (start_flume.sh cho Terminal 1)
 ├── preprocessing/      # Tiền xử lý phân tán Map-only trên YARN 
 ├── mapreduce/          # Hadoop Streaming Mapper & Reducer trên YARN
-├── anomaly/            # Bộ lọc 6 quy tắc phát hiện bất thường & xuất báo cáo HDFS
-├── spark_ml/           # Mô hình PySpark MLlib (Random Forest) phát hiện bất thường
+├── anomaly/            # Bộ lọc Rule-based & Mô hình Machine Learning (KMeans) tăng độ chính xác
 ├── Dockerfile          # Docker image đóng gói ứng dụng pipeline & Hadoop client
 ├── docker-compose.yml  # Cấu hình cụm Hadoop và Pipeline Runner
 ├── hadoop.env          # Biến môi trường cho cụm Hadoop
-├── run_pipeline.sh     # Script chạy tự động toàn bộ pipeline trên YARN & HDFS
+├── requirements.txt    # Thư viện Machine Learning (scikit-learn, numpy)
+├── run_pipeline.sh     # Script chạy tự động toàn bộ pipeline trên YARN & HDFS (Terminal 2)
 └── README.md           # Hướng dẫn chi tiết
 ```
 
 ---
 
-## 3. Hướng Dẫn Vận Hành
-
-### Cách 1: Triển khai bằng Docker Compose
-
-Yêu cầu máy chủ đã cài đặt Docker và Docker Compose:
-
-```bash
-# 1. Khởi động cụm Hadoop và Pipeline runner
-docker compose up -d
-
-# 2. Theo dõi tiến trình thực thi
-docker logs -f log-pipeline-runner
-
-# 3. Giao diện Web UI quản trị:
-# - Hadoop HDFS NameNode: http://localhost:9870
-# - YARN Resource Manager: http://localhost:8088
-```
-
----
-
-### Cách 2: Chạy trực tiếp trên máy ảo Ubuntu / Linux (Mô hình 2 Terminal chuẩn)
+## 3. Hướng Dẫn Vận Hành (Mô hình 2 Terminal chuẩn)
 
 Để quay video demo trực quan và vận hành Apache Flume thật:
 
@@ -96,7 +76,7 @@ bash flume/start_flume.sh
 
 #### Terminal 2: Chạy Pipeline điều phối & phân tích tự động
 ```bash
-# Cài đặt thư viện AI (tùy chọn nhưng khuyên dùng cho mô hình Isolation Forest):
+# Cài đặt thư viện Machine Learning:
 pip install -r requirements.txt
 
 # Chạy toàn bộ pipeline:
@@ -108,16 +88,23 @@ bash run_pipeline.sh
 
 ---
 
-## 4. Cơ chế Phát hiện Bất thường: Quy trình 2 Lớp (Rule Screening + AI Verification)
+## 4. Cơ Chế Phát Hiện Bất Thường & Tăng Độ Chính Xác (Rule + KMeans ML)
 
-Hệ thống kết hợp giữa **Bộ luật Heuristic** và **Học máy không giám sát (Isolation Forest)** để loại bỏ báo động giả (False Positive):
+Hệ thống kết hợp giữa **Bộ luật Heuristic** và **Mô hình Học máy KMeans (Scikit-learn MLlib)** theo quy trình 2 giai đoạn:
 
-1. **Quy tắc 1 (Lượng truy cập tăng vọt):** Số lượng yêu cầu trong một giờ vượt ngưỡng $Mean + 2 \times StdDev$.
-2. **Quy tắc 2 (Tỉ lệ log lỗi cao):** Số log báo lỗi (`ERROR`) trong một giờ chiếm hơn 5% tổng lượng truy cập.
-3. **Quy tắc 3 (Tỉ lệ lỗi máy chủ cao):** Các mã lỗi 500/503 chiếm hơn 5% lượng truy cập trong giờ.
-4. **Quy tắc 4 (Quy trình 2 lớp kiểm tra IP):**
-   - **Cấp 1 (Sàng lọc bằng Rule):** Chọn ra các IP có lưu lượng cao bất thường ($> 1.000$ req/giờ) đưa vào danh sách nghi vấn.
-   - **Cấp 2 (Thẩm định bằng AI - Isolation Forest):** Đánh giá đa chiều (Lưu lượng request + Tỉ lệ gây lỗi). Phân biệt rạch ròi giữa **Khách hàng lớn / Đối tác lành tính** (Request cao nhưng tỉ lệ lỗi $\approx 0\%$) và **Tấn công Botnet / Flooding độc hại** (Request cao kèm tỉ lệ lỗi cao).
-5. **Quy tắc 5 (Thời gian xử lý quá chậm):** Thời gian phản hồi trung bình trong một giờ vượt quá 2.000 ms.
-6. **Quy tắc 6 (Đường dẫn gặp lỗi nhiều nhất):** Liệt kê Top 5 endpoints bị lỗi nhiều lần nhất trong ngày.
+* **Giai đoạn 1 (Bộ luật Heuristic - Lọc thô):**
+  1. *Quy tắc 1 (Lượng truy cập tăng vọt):* Số lượng yêu cầu trong một giờ vượt ngưỡng $Mean + 2 \times StdDev$.
+  2. *Quy tắc 2 (Tỉ lệ log lỗi cao):* Số log báo lỗi (`ERROR`) trong một giờ chiếm hơn 5% tổng lượng truy cập.
+  3. *Quy tắc 3 (Tỉ lệ lỗi máy chủ cao):* Các mã lỗi 500/503 chiếm hơn 5% lượng truy cập trong giờ.
+  4. *Quy tắc 4 (Lưu lượng IP cao):* Phát hiện các địa chỉ IP gửi trên 1.000 req/giờ.
+  5. *Quy tắc 5 (Thời gian xử lý quá chậm):* Thời gian phản hồi trung bình trong một giờ vượt quá 2.000 ms.
+  6. *Quy tắc 6 (Đường dẫn gặp lỗi nhiều nhất):* Liệt kê Top 5 endpoints bị lỗi nhiều lần nhất trong ngày.
+
+* **Giai đoạn 2 (Thẩm định bằng KMeans - Nâng cao độ chính xác):**
+  - Tiếp nhận danh sách các khung giờ và IP nghi vấn từ Giai đoạn 1.
+  - Sử dụng mô hình `KMeans` phân cụm đa chiều `[Traffic, Lỗi %, Lỗi 5xx %, Độ trễ]` sau khi chuẩn hóa bằng `StandardScaler`.
+  - Đo khoảng cách từ mỗi điểm tới tâm cụm bình thường để thẩm định:
+    - **Loại bỏ báo động giả (False Positives):** Các trường hợp chỉ vì lưu lượng hơi cao nhưng không gây lỗi (như khách lớn/bot lành tính) được xác nhận an toàn, không cảnh báo sai.
+    - **Xác thực bất thường thực sự (True Anomalies):** Các khung giờ hoặc IP dị biệt văng xa khỏi tâm cụm được gắn cờ báo động chính xác.
+
 

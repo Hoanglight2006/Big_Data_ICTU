@@ -46,16 +46,24 @@ def load_mapreduce_lines():
     parser.add_argument("--file", default=None, help="Đường dẫn file kết quả local")
     parser.add_argument("--date", default=LOG_DATE, help="Ngày phân tích (YYYY-MM-DD)")
     args, _ = parser.parse_known_args()
-
     date_str = args.date
     lines = []
+    if args.file and os.path.exists(args.file):
+        for enc in ["utf-8-sig", "utf-8", "utf-16", "cp1252"]:
+            try:
+                with open(args.file, "r", encoding=enc) as f:
+                    lines = f.readlines()
+                return lines, date_str
+            except Exception:
+                continue
 
-    # 1. Kiểm tra stream stdin
+    # 2. Kiểm tra stream stdin (chỉ khi có pipe thực sự)
     if not sys.stdin.isatty():
-        for line in sys.stdin:
-            lines.append(line)
-        if lines:
-            return lines, date_str
+        try:
+            import msvcrt
+            # Trên Windows tránh block nếu không có pipe
+        except ImportError:
+            pass
 
     # 2. Đọc trực tiếp từ HDFS không qua file trung gian
     hdfs_target = args.hdfs or os.getenv("HDFS_OUTPUT_DIR") or f"/data/output/{date_str}"
@@ -253,8 +261,12 @@ def detect_anomalies(data, date_str=LOG_DATE):
         print(f"   - {ep:<30}: {count:,} lần lỗi")
 
     print("\n" + "=" * 80)
-    print(f"Tổng kết: Đã phát hiện {len(anomalies)} dấu hiệu bất thường trong ngày.")
+    print(f"Tổng kết bước Rule: Đã phát hiện {len(anomalies)} dấu hiệu nghi vấn ban đầu.")
     print("=" * 80)
+
+    # GIAI ĐOẠN 2: THẨM ĐỊNH BẰNG HỌC MÁY K-MEANS ĐỂ TĂNG ĐỘ CHÍNH XÁC
+    from anomaly.kmeans_verifier import verify_anomalies_with_kmeans
+    kmeans_eval = verify_anomalies_with_kmeans(data, anomalies)
 
     # Cấu trúc báo cáo JSON
     report_data = {
@@ -265,8 +277,10 @@ def detect_anomalies(data, date_str=LOG_DATE):
             "warning_threshold": round(warn_threshold, 2),
             "critical_threshold": round(crit_threshold, 2)
         },
-        "total_anomalies_detected": len(anomalies),
-        "anomalies": anomalies
+        "rule_initial_anomalies_count": len(anomalies),
+        "rule_anomalies": anomalies,
+        "kmeans_verification": kmeans_eval,
+        "final_confirmed_anomalies": kmeans_eval["final_confirmed_count"]
     }
 
     report_json_str = json.dumps(report_data, indent=2, ensure_ascii=False)
