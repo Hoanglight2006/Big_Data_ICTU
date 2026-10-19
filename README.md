@@ -89,11 +89,19 @@ bash init_history.sh 7
 ---
 
 ### Bước 3 (Terminal 2): Huấn luyện mô hình KMeans (Luồng 1)
-Sau khi đã có dữ liệu lịch sử trên HDFS, tiến hành huấn luyện mô hình:
-```bash
-python3 anomaly/train_kmeans_model.py
-```
-*Script sẽ đọc dữ liệu tổng hợp của tất cả các ngày từ HDFS `/data/output/*/part-*`, huấn luyện PySpark MLlib KMeans ($K=2$), tính điểm Silhouette và lưu mô hình lên HDFS tại `/models/kmeans_anomaly_model`.*
+Sau khi đã có dữ liệu lịch sử trên HDFS, tiến hành huấn luyện mô hình bằng PySpark MLlib:
+
+- **Cách 1: Chạy phân tán song song trên nhiều máy trong cụm YARN (Chuẩn Big Data):**
+  ```bash
+  spark-submit --master yarn anomaly/train_kmeans_model.py
+  ```
+  *YARN ResourceManager sẽ cấp phát Container cho các Executor trên các máy worker để tính toán song song.*
+
+- **Cách 2: Chạy kiểm thử cục bộ:**
+  ```bash
+  python3 anomaly/train_kmeans_model.py
+  ```
+*Script sẽ đọc dữ liệu tổng hợp của tất cả các ngày từ HDFS `/data/output/*/part-*`, huấn luyện PySpark MLlib KMeans ($K=2$), tính điểm Silhouette và lưu mô hình trực tiếp lên HDFS tại `/models/kmeans_anomaly_model`.*
 
 ---
 

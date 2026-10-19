@@ -110,12 +110,13 @@ def main():
         from pyspark.ml.linalg import Vectors
         from pyspark.sql import Row
 
-        spark = SparkSession\
-            .builder\
-            .appName("KMeansModelTrainer")\
-            .master("local[*]")\
-            .getOrCreate()
+        builder = SparkSession.builder.appName("KMeansModelTrainer")
+        # Nếu có cấu hình SPARK_MASTER (ví dụ 'yarn') thì dùng, nếu không thì lấy từ spark-submit hoặc fallback local[*]
+        spark_master = os.getenv("SPARK_MASTER")
+        if spark_master:
+            builder = builder.master(spark_master)
 
+        spark = builder.getOrCreate()
         spark.sparkContext.setLogLevel("ERROR")
 
         rows = [Row(features=Vectors.dense(pt)) for pt in historical_data]

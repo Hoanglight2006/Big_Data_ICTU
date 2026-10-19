@@ -53,12 +53,12 @@ def run_pyspark_kmeans(parsed_data, rule_anomalies):
     from pyspark.ml.linalg import Vectors
     from pyspark.sql import Row
 
-    spark = SparkSession\
-        .builder\
-        .appName("LogAnomaly_KMeansVerifier")\
-        .master("local[*]")\
-        .getOrCreate()
+    builder = SparkSession.builder.appName("LogAnomaly_KMeansVerifier")
+    spark_master = os.getenv("SPARK_MASTER")
+    if spark_master:
+        builder = builder.master(spark_master)
 
+    spark = builder.getOrCreate()
     spark.sparkContext.setLogLevel("ERROR")
 
     hour_reqs = parsed_data["hour_requests"]
