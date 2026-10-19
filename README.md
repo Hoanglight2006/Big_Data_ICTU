@@ -54,6 +54,7 @@ log-simulation/
 ├── preprocessing/      # Tiền xử lý phân tán Map-only trên YARN 
 ├── mapreduce/          # Hadoop Streaming Mapper & Reducer trên YARN
 ├── anomaly/            # Bộ lọc 6 quy tắc phát hiện bất thường & xuất báo cáo HDFS
+├── spark_ml/           # Mô hình PySpark MLlib (Random Forest) phát hiện bất thường
 ├── Dockerfile          # Docker image đóng gói ứng dụng pipeline & Hadoop client
 ├── docker-compose.yml  # Cấu hình cụm Hadoop và Pipeline Runner
 ├── hadoop.env          # Biến môi trường cho cụm Hadoop

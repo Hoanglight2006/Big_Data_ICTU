@@ -1,3 +1,4 @@
-# Python dependencies for Machine Learning Anomaly Detection
+# Python dependencies for Big Data & Machine Learning
+pyspark>=3.2.0
 scikit-learn>=1.0.0
 numpy>=1.20.0

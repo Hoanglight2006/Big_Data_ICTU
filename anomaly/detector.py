@@ -90,7 +90,6 @@ def parse_mapreduce_data(lines):
     hour_5xx = defaultdict(int)
     hour_avg_resp = defaultdict(float)
     ip_requests = defaultdict(lambda: defaultdict(int)) # hour -> ip -> count
-    ip_errors = defaultdict(lambda: defaultdict(int))   # hour -> ip -> err_count
     endpoint_errors = defaultdict(int)
 
     for line in lines:
@@ -119,11 +118,6 @@ def parse_mapreduce_data(lines):
             if len(subparts) == 3:
                 h, ip = subparts[1], subparts[2]
                 ip_requests[h][ip] = int(float(val_str))
-        elif key.startswith("ip_err:"):
-            subparts = key.split(":")
-            if len(subparts) == 3:
-                h, ip = subparts[1], subparts[2]
-                ip_errors[h][ip] = int(float(val_str))
         elif key.startswith("endpoint_err:"):
             endpoint = key.split(":", 1)[1]
             endpoint_errors[endpoint] = int(float(val_str))
@@ -134,59 +128,8 @@ def parse_mapreduce_data(lines):
         "hour_5xx": hour_5xx,
         "hour_avg_resp": hour_avg_resp,
         "ip_requests": ip_requests,
-        "ip_errors": ip_errors,
         "endpoint_errors": endpoint_errors,
     }
-
-def verify_ip_with_ai(candidates):
-    """
-    Cấp 2: AI / Học máy thẩm định các IP lưu lượng lớn.
-    Phân biệt giữa người dùng lớn hợp lệ (Benign High-Traffic) và tấn công độc hại (Malicious Attack).
-    """
-    verified = []
-    if not candidates:
-        return verified
-
-    has_sklearn = False
-    try:
-        from sklearn.ensemble import IsolationForest
-        import numpy as np
-        has_sklearn = True
-    except ImportError:
-        has_sklearn = False
-
-    if has_sklearn and len(candidates) >= 2:
-        X = np.array([[c["requests"], c["error_rate"]] for c in candidates])
-        clf = IsolationForest(contamination=0.2, random_state=42)
-        preds = clf.fit_predict(X)
-        scores = -clf.score_samples(X)
-        for i, c in enumerate(candidates):
-            is_anomaly = (preds[i] == -1 and c["error_rate"] >= 5.0) or (c["error_rate"] >= 15.0)
-            verified.append({
-                "hour": c["hour"],
-                "ip": c["ip"],
-                "requests": c["requests"],
-                "error_rate": round(c["error_rate"], 2),
-                "is_anomaly": is_anomaly,
-                "classification": "MALICIOUS_FLOOD_ATTACK" if is_anomaly else "BENIGN_HIGH_TRAFFIC",
-                "anomaly_score": round(float(scores[i]), 3),
-                "model": "IsolationForest"
-            })
-    else:
-        for c in candidates:
-            is_anomaly = c["error_rate"] >= 5.0
-            score = round((c["requests"] / 1000.0) * (c["error_rate"] / 10.0), 3)
-            verified.append({
-                "hour": c["hour"],
-                "ip": c["ip"],
-                "requests": c["requests"],
-                "error_rate": round(c["error_rate"], 2),
-                "is_anomaly": is_anomaly,
-                "classification": "MALICIOUS_FLOOD_ATTACK" if is_anomaly else "BENIGN_HIGH_TRAFFIC",
-                "anomaly_score": score,
-                "model": "Rule_Enhanced_Heuristic"
-            })
-    return verified
 
 def detect_anomalies(data, date_str=LOG_DATE):
     hour_reqs = data["hour_requests"]
@@ -285,53 +228,23 @@ def detect_anomalies(data, date_str=LOG_DATE):
 
     print("=" * 80)
 
-    # Cấp 1 & Cấp 2: Quy trình thẩm định 2 lớp (Rule Screening -> AI Verification)
-    print("\n" + "=" * 80)
-    print("QUY TRÌNH 2 LỚP: SÀNG LỌC RULE (CẤP 1) & THẨM ĐỊNH HỌC MÁY AI (CẤP 2)")
-    print("=" * 80)
-    ip_errs = data.get("ip_errors", defaultdict(lambda: defaultdict(int)))
-    ip_candidates = []
+    # Rule 4: IP Flood Detection
+    print("\nKiểm tra dấu hiệu spam / gửi yêu cầu quá tải theo IP (Ngưỡng > 1.000 yêu cầu/giờ):")
+    found_flood = False
     for h, ip_map in ip_reqs.items():
         for ip, count in ip_map.items():
             if count >= MAX_IP_REQUESTS_PER_HOUR:
-                err_cnt = ip_errs[h].get(ip, 0)
-                err_rate = (err_cnt / count) * 100.0 if count > 0 else 0.0
-                ip_candidates.append({
-                    "hour": h,
-                    "ip": ip,
-                    "requests": count,
-                    "error_count": err_cnt,
-                    "error_rate": err_rate
-                })
-
-    ai_verified = verify_ip_with_ai(ip_candidates)
-    if not ai_verified:
-        print("   [Cấp 1 & 2] Không phát hiện IP nào có lưu lượng vượt ngưỡng.")
-    else:
-        print(f"{'Giờ':<6} | {'Địa chỉ IP':<16} | {'Yêu cầu/h':<12} | {'Tỉ lệ lỗi':<12} | {'AI Phân loại':<24} | {'Đánh giá'}")
-        print("-" * 80)
-        for res in ai_verified:
-            cls = res["classification"]
-            h = res["hour"]
-            ip = res["ip"]
-            req_str = f"{res['requests']:,}"
-            err_str = f"{res['error_rate']:.1f}%"
-
-            if res["is_anomaly"]:
-                verdict = "[!] BẤT THƯỜNG (Tấn công)"
+                found_flood = True
+                print(f"   [CẢNH BÁO] IP: {ip:<15} | Giờ: {h}:00 | Gửi: {count:,} yêu cầu/giờ -> Có dấu hiệu spam hoặc phá hoại!")
                 anomalies.append({
-                    "rule": "R04_IP_FLOOD_AI_VERIFIED",
+                    "rule": "R04_IP_FLOOD",
                     "severity": "CRITICAL",
                     "hour": h,
                     "ip": ip,
-                    "classification": cls,
-                    "error_rate": res["error_rate"],
-                    "message": f"AI thẩm định: IP {ip} tấn công flood trong giờ {h}:00 ({res['requests']:,} reqs, lỗi {res['error_rate']:.1f}%)"
+                    "message": f"IP {ip} gửi {count:,} yêu cầu trong giờ {h}:00 (Vượt ngưỡng {MAX_IP_REQUESTS_PER_HOUR})"
                 })
-            else:
-                verdict = "[OK] HỢP LỆ (Khách lớn/Bot an toàn)"
-
-            print(f"{h}:00  | {ip:<16} | {req_str:<12} | {err_str:<12} | {cls:<24} | {verdict}")
+    if not found_flood:
+        print("   Không có IP nào gửi yêu cầu quá mức quy định.")
 
     # Rule 6: Top Endpoints gặp lỗi
     print("\nCác đường dẫn chức năng gặp lỗi nhiều nhất:")
@@ -352,7 +265,6 @@ def detect_anomalies(data, date_str=LOG_DATE):
             "warning_threshold": round(warn_threshold, 2),
             "critical_threshold": round(crit_threshold, 2)
         },
-        "two_stage_ai_verification": ai_verified,
         "total_anomalies_detected": len(anomalies),
         "anomalies": anomalies
     }
