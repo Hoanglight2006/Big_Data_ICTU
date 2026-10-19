@@ -1,7 +1,7 @@
 # Thư Mục `mapreduce/` — Tính Toán Phân Tán (Hadoop Streaming)
 
 > **Thành viên phụ trách:** Dương Đình Hoàng  
-> **Nhiệm vụ:** *"Utilizes MapReduce to analyze data provided by Nong Minh Tri and Trieu Van Huy, building the core aggregation metrics."*
+> **Nhiệm vụ:** Sử dụng MapReduce để tính toán và tổng hợp các chỉ số lưu lượng, lỗi và độ trễ từ dữ liệu sạch.
 
 ---
 

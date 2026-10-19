@@ -1,7 +1,7 @@
 # Thư Mục `preprocessing/` — Tiền Xử Lý & Làm Sạch Dữ Liệu
 
 > **Thành viên phụ trách:** Nông Minh Trí & Triệu Văn Huy  
-> **Nhiệm vụ:** *"Receive the raw HDFS data from Dang Van Vinh, cleaning and structuring it to ensure high-quality inputs for the MapReduce analysis."*
+> **Nhiệm vụ:** Tiếp nhận dữ liệu thô từ HDFS, làm sạch và chuẩn hóa dữ liệu để cung cấp đầu vào chất lượng cho bước MapReduce.
 
 ---
 

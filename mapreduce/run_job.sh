@@ -28,7 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "=========================================================="
-echo " [INFO] BAT DAU MAPREDUCE AGGREGATION TREN YARN"
+echo " BẮT ĐẦU MAPREDUCE TỔNG HỢP TRÊN YARN"
 echo " Ngày phân tích : $LOG_DATE"
 echo " Hadoop Home    : $HADOOP_HOME"
 echo " Streaming JAR  : $STREAMING_JAR"
@@ -38,15 +38,15 @@ echo "=========================================================="
 
 # 1. Kiểm tra file JAR
 if [ ! -f "$STREAMING_JAR" ]; then
-    echo "[ERROR] Không tìm thấy file hadoop-streaming jar tại: $STREAMING_JAR"
-    echo "        Hãy cấu hình đúng HADOOP_HOME hoặc STREAMING_JAR."
+    echo "[LỖI] Không tìm thấy file hadoop-streaming jar tại: $STREAMING_JAR"
+    echo "      Cần cấu hình đúng HADOOP_HOME hoặc STREAMING_JAR."
     exit 1
 fi
 
 # 2. Kiểm tra dữ liệu đầu vào đã làm sạch trên HDFS
 if ! hdfs dfs -test -e "$HDFS_INPUT"; then
-    echo "[ERROR] Không tìm thấy dữ liệu đã làm sạch trên HDFS: $HDFS_INPUT"
-    echo "        Hãy chạy bước tiền xử lý (preprocessing/run_cleaner.sh) trước."
+    echo "[LỖI] Không tìm thấy dữ liệu đã làm sạch trên HDFS: $HDFS_INPUT"
+    echo "      Cần chạy bước tiền xử lý (preprocessing/run_cleaner.sh) trước."
     exit 1
 fi
 
@@ -69,8 +69,8 @@ hadoop jar "$STREAMING_JAR" \
     -input "$HDFS_INPUT" \
     -output "$HDFS_OUTPUT"
 
-echo "[INFO] MapReduce hoàn thành thành công trên YARN!"
-echo "[INFO] Dữ liệu tổng hợp được lưu trực tiếp trên HDFS tại: $HDFS_OUTPUT"
+echo "[INFO] MapReduce hoàn tất trên YARN."
+echo "[INFO] Dữ liệu tổng hợp lưu tại HDFS: $HDFS_OUTPUT"
 hdfs dfs -ls "$HDFS_OUTPUT"
 
 echo "=========================================================="

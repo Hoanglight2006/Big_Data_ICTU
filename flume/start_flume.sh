@@ -13,8 +13,8 @@ RUNTIME_CONF="${SCRIPT_DIR}/flume-runtime.conf"
 HADOOP_HOME="${HADOOP_HOME:-$HOME/hadoop-3.2.1}"
 
 echo "=========================================================="
-echo " [INFO] KHOI DONG APACHE FLUME AGENT (TERMINAL 1)"
-echo " Thu muc Spool dir : $SPOOL_DIR"
+echo " KHỞI ĐỘNG APACHE FLUME AGENT (TERMINAL 1)"
+echo " Thư mục Spool dir : $SPOOL_DIR"
 echo " Hadoop Home       : $HADOOP_HOME"
 echo "=========================================================="
 
@@ -27,9 +27,9 @@ sed "s|@SPOOL_DIR@|${SPOOL_DIR}|g" "${SCRIPT_DIR}/flume-hdfs.conf" > "$RUNTIME_C
 # 3. Nạp thư viện Hadoop vào Classpath của Flume để ghi vào HDFS Sink
 if [ -d "$HADOOP_HOME" ]; then
     export FLUME_CLASSPATH=$("${HADOOP_HOME}/bin/hadoop" classpath 2>/dev/null || true)
-    echo " [INFO] Da nap Hadoop Classpath thanh cong."
+    echo " [INFO] Đã nạp Hadoop Classpath."
 else
-    echo " [WARN] Khong tim thay HADOOP_HOME tai $HADOOP_HOME. Flume co the thieu thu vien HDFS."
+    echo " [CẢNH BÁO] Không tìm thấy HADOOP_HOME tại $HADOOP_HOME. Flume có thể thiếu thư viện HDFS."
 fi
 
 # 4. Kiểm tra lệnh flume-ng
@@ -44,12 +44,12 @@ if ! command -v flume-ng &> /dev/null; then
 fi
 
 if ! command -v flume-ng &> /dev/null; then
-    echo " [ERROR] Khong tim thay lenh 'flume-ng'. Hay cai dat Apache Flume hoac cau hinh PATH."
+    echo " [LỖI] Không tìm thấy lệnh 'flume-ng'. Cần cài đặt Apache Flume hoặc cấu hình PATH."
     exit 1
 fi
 
-echo " [INFO] Flume Agent 'a1' bat dau lang nghe tai: $SPOOL_DIR ..."
-echo " [INFO] Khi co file log moi, Flume se tu dong nap len HDFS (/data/raw/%Y-%m-%d/)"
+echo " [INFO] Flume Agent 'a1' lắng nghe tại: $SPOOL_DIR"
+echo " [INFO] File log mới sẽ được nạp lên HDFS (/data/raw/%Y-%m-%d/)"
 echo "----------------------------------------------------------"
 
 exec flume-ng agent \
