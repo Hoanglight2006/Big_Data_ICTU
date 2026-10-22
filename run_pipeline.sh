@@ -69,6 +69,11 @@ else
     echo "  [INFO] Dich vu YARN (ResourceManager) dang hoat dong."
 fi
 
+# Khoi dong JobHistoryServer (tranh loi client khong ket noi duoc port 10020 sau khi job ket thuc)
+if [ -f "${HADOOP_HOME}/sbin/mr-jobhistory-daemon.sh" ]; then
+    "${HADOOP_HOME}/sbin/mr-jobhistory-daemon.sh" start historyserver 2>/dev/null || true
+fi
+
 # -----------------------------------------------------------------------------
 # BUOC 2: SINH DU LIEU LOG
 # -----------------------------------------------------------------------------

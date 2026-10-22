@@ -54,10 +54,16 @@ fi
 echo "[INFO] Dọn dẹp thư mục output cũ trên HDFS (nếu có)..."
 hdfs dfs -rm -r -f "$HDFS_OUTPUT" || true
 
-# 4. Chạy Hadoop Streaming Job trên YARN
+# 4. Khởi động JobHistoryServer nếu chưa chạy (để tránh lỗi retry port 10020 sau khi job hoàn thành)
+if [ -f "${HADOOP_HOME}/sbin/mr-jobhistory-daemon.sh" ]; then
+    "${HADOOP_HOME}/sbin/mr-jobhistory-daemon.sh" start historyserver 2>/dev/null || true
+fi
+
+# 5. Chạy Hadoop Streaming Job trên YARN
 echo "[INFO] Submit MapReduce Job lên cụm YARN..."
 export HADOOP_CLASSPATH=$("${HADOOP_HOME}/bin/hadoop" classpath 2>/dev/null || true)
 
+set +e
 hadoop jar "$STREAMING_JAR" \
     -D yarn.app.mapreduce.am.env="HADOOP_MAPRED_HOME=${HADOOP_HOME}" \
     -D mapreduce.map.env="HADOOP_MAPRED_HOME=${HADOOP_HOME}" \
@@ -68,6 +74,19 @@ hadoop jar "$STREAMING_JAR" \
     -reducer "python3 reducer.py" \
     -input "$HDFS_INPUT" \
     -output "$HDFS_OUTPUT"
+JOB_STATUS=$?
+set -e
+
+# Kiểm tra nếu HDFS output đã có file part-* hoặc _SUCCESS thì Job thực tế đã chạy xong
+if [ $JOB_STATUS -ne 0 ]; then
+    if hdfs dfs -test -e "${HDFS_OUTPUT}/_SUCCESS" 2>/dev/null || [ $(hdfs dfs -ls "${HDFS_OUTPUT}" 2>/dev/null | grep -c "part-") -gt 0 ]; then
+        echo "[WARN] Client không kết nối được JobHistoryServer (10020), nhưng Job MapReduce trên YARN đã hoàn thành và sinh file output thành công."
+        JOB_STATUS=0
+    else
+        echo "[ERROR] MapReduce Job thực sự thất bại."
+        exit $JOB_STATUS
+    fi
+fi
 
 echo "[INFO] MapReduce hoàn thành thành công trên YARN!"
 echo "[INFO] Dữ liệu tổng hợp được lưu trực tiếp trên HDFS tại: $HDFS_OUTPUT"
