@@ -76,10 +76,26 @@ echo -e "\n[2/6] Sinh du lieu log web server cho ngay $LOG_DATE..."
 python3 data/generate_logs.py
 
 # -----------------------------------------------------------------------------
-# BUOC 3: INGESTION VAO HDFS RAW ZONE
+# BUOC 3: KIEM TRA FLUME AGENT NAP DU LIEU VAO HDFS RAW ZONE
 # -----------------------------------------------------------------------------
-echo -e "\n[3/6] Flume Ingestion nap du lieu vao HDFS (/data/raw/$LOG_DATE)..."
-python3 flume/ingest_to_hdfs.py
+echo -e "\n[3/6] Cho Apache Flume Agent nap log vao HDFS (/data/raw/$LOG_DATE)..."
+FLUME_INGESTED=false
+for i in {1..30}; do
+    if hdfs dfs -test -e "/data/raw/$LOG_DATE" 2>/dev/null && [ $(hdfs dfs -ls "/data/raw/$LOG_DATE" 2>/dev/null | grep -c "\.log") -gt 0 ]; then
+        FLUME_INGESTED=true
+        break
+    fi
+    sleep 1
+done
+
+if [ "$FLUME_INGESTED" = false ]; then
+    echo "  [ERROR] Flume chua nap du lieu vao /data/raw/$LOG_DATE!"
+    echo "          Hay dam bao Apache Flume Agent dang chay o Terminal 1:"
+    echo "          flume-ng agent --conf flume/ --conf-file flume/flume-hdfs.conf --name a1 -Dflume.root.logger=INFO,console"
+    exit 1
+fi
+echo "  [INFO] Flume Agent da nap du lieu vao HDFS thanh cong:"
+hdfs dfs -ls "/data/raw/$LOG_DATE"
 
 # -----------------------------------------------------------------------------
 # BUOC 4: TIEN XU LY & LAM SACH PHAN TAN TREN YARN
