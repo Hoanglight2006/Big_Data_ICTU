@@ -73,8 +73,9 @@ if ! command -v flume-ng &> /dev/null; then
     exit 1
 fi
 
-# 5. Cấp đủ RAM cho Flume JVM để tránh OutOfMemoryError khi xử lý file log lớn
-export JAVA_OPTS="-Xms256m -Xmx1024m ${JAVA_OPTS:-}"
+# 5. Cấp đủ RAM cho Flume JVM (dùng FLUME_JAVA_OPTS, không phải JAVA_OPTS)
+export JAVA_OPTS="-Xms256m -Xmx2048m"
+export FLUME_JAVA_OPTS="-Xms256m -Xmx2048m"
 
 exec flume-ng agent \
     --conf-file "$RUNTIME_CONF" \
