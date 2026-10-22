@@ -51,13 +51,13 @@ def main():
     print(f"\n[2/3] Chờ Apache Flume Agent (Terminal 1) xử lý và nạp log vào HDFS...")
     flume_ingested = False
 
-    # Chờ tối đa 30 giây để Flume Agent đọc file spool và ghi vào HDFS
-    max_wait_seconds = 30
+    # Chờ tối đa 120 giây để Flume Agent đọc file spool và ghi vào HDFS
+    max_wait_seconds = 120
     for second in range(1, max_wait_seconds + 1):
         if os.path.exists(completed_log) or check_hdfs_files():
             flume_ingested = True
             break
-        if second % 5 == 0:
+        if second % 10 == 0:
             print(f"      ... đang chờ Flume nạp dữ liệu ({second}/{max_wait_seconds}s)")
         time.sleep(1)
 

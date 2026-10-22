@@ -82,8 +82,15 @@ echo "----------------------------------------------------------"
 COUNT=1
 for TARGET_DATE in "${DATES[@]}"; do
     echo -e "\n=========================================================="
-    echo " [$COUNT/$NUM_DAYS] BẮT ĐẦU XỬ LÝ LÔ DỮ LIỆU NGÀY: $TARGET_DATE"
+    echo " [$COUNT/$NUM_DAYS] XỬ LÝ LÔ DỮ LIỆU NGÀY: $TARGET_DATE"
     echo "=========================================================="
+
+    # Kiểm tra xem ngày này đã có output trên HDFS chưa, nếu rồi thì bỏ qua
+    if hdfs dfs -ls "/data/output/$TARGET_DATE" &> /dev/null; then
+        echo "  [SKIP] /data/output/$TARGET_DATE đã tồn tại trên HDFS. Bỏ qua để tránh duplicate."
+        COUNT=$(( COUNT + 1 ))
+        continue
+    fi
 
     export LOG_DATE="$TARGET_DATE"
 
