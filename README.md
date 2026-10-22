@@ -85,35 +85,73 @@ docker logs -f log-pipeline-runner
 
 ### Cách 2: Chạy trực tiếp trên máy ảo Ubuntu / Linux đã cấu hình Hadoop
 
-#### Chạy toàn bộ pipeline tự động (6 bước):
+#### Bước 1: Khởi động dịch vụ Hadoop & Flume Agent (Terminal 1)
+
+1. Khởi động HDFS và YARN (nếu chưa chạy):
+   ```bash
+   start-dfs.sh
+   start-yarn.sh
+   ```
+
+2. Kiểm tra thư mục `spoolDir` trong file cấu hình [flume/flume-hdfs.conf](file:///d:/clone/bigdata/log-simulation/flume/flume-hdfs.conf#L23):
+   - Đảm bảo tham số `a1.sources.r1.spoolDir` trỏ đúng đường dẫn tuyệt đối tới thư mục `data/spool` trên máy.
+
+3. Nạp classpath Hadoop và khởi động Flume Agent:
+   ```bash
+   export FLUME_CLASSPATH=$(hadoop classpath)
+
+   flume-ng agent \
+     --conf flume/ \
+     --conf-file flume/flume-hdfs.conf \
+     --name a1 \
+     -Dflume.root.logger=INFO,console
+   ```
+   *Giữ Terminal 1 hoạt động để Flume theo dõi thư mục `data/spool/` và đẩy dữ liệu lên HDFS.*
+
+---
+
+#### Bước 2: Thực thi pipeline xử lý dữ liệu (Terminal 2)
+
+**Lựa chọn 2.1: Chạy tự động toàn bộ luồng:**
 ```bash
 # Mặc định lấy ngày hiện tại:
 bash run_pipeline.sh
 
-# (Tùy chọn) Truyền ngày cụ thể để xử lý:
+# Hoặc truyền ngày cụ thể:
 # bash run_pipeline.sh 2026-10-01
 ```
 
-#### Hoặc chạy thủ công từng bước theo phân công:
-1. **Sinh dữ liệu log:**
+**Lựa chọn 2.2: Chạy thủ công từng bước:**
+
+1. **Sinh dữ liệu log vào thư mục spool:**
    ```bash
    python3 data/generate_logs.py
    ```
-2. **Nạp dữ liệu vào HDFS Raw Zone:**
+   *File log sinh ra tại `data/spool/`. Flume Agent (Terminal 1) tự động nạp vào HDFS `/data/raw/<YYYY-MM-DD>/` và đổi đuôi file thành `.COMPLETED`.*
+
+2. **Kiểm tra dữ liệu nạp trên HDFS Raw Zone:**
    ```bash
-   python3 flume/ingest_to_hdfs.py
+   hdfs dfs -ls /data/raw/$(date +%F)
    ```
-3. **Tiền xử lý Map-only Job trên YARN:**
+
+3. **Chạy tiền xử lý Map-only trên YARN:**
    ```bash
    bash preprocessing/run_cleaner.sh
    ```
-4. **MapReduce Aggregation Job trên YARN:**
+
+4. **Chạy MapReduce Aggregation trên YARN:**
    ```bash
    bash mapreduce/run_job.sh
    ```
-5. **Phát hiện bất thường từ HDFS stream:**
+
+5. **Chạy phát hiện bất thường từ HDFS stream:**
    ```bash
    python3 anomaly/detector.py
+   ```
+
+6. **Xem báo cáo phát hiện bất thường trên HDFS:**
+   ```bash
+   hdfs dfs -cat /data/reports/$(date +%F)/anomaly_report.json
    ```
 
 ---
