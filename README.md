@@ -1,134 +1,158 @@
-# Hệ Thống Phân Tích Nhật Ký Web Server & Phát Hiện Bất Thường (Big Data)
+# Phân Tích Nhật Ký Web Server & Phát Hiện Bất Thường (Big Data)
 
-> **Khóa học:** Samsung Innovation Campus (SIC) - Big Data Course  
-> **Nhóm thực hiện:** Group 3  
-> **Thành viên:** 
-> - **Dương Đình Hoàng (Leader):** Kiến trúc hệ thống, Hadoop MapReduce & Bộ luật Anomaly Detection.
-> - **Đặng Văn Vinh:** Sinh dữ liệu web logs, cấu hình Apache Flume Ingestion nạp HDFS.
-> - **Nông Minh Trí & Triệu Văn Huy:** Quản lý cấu trúc lưu trữ HDFS phân vùng theo ngày, tiền xử lý dữ liệu.
-> - **Lý Việt Hoàng:** Kiểm thử hệ thống, tổng hợp kết quả, viết báo cáo & thiết kế Slide.
+- **Môn học:** Samsung Innovation Campus (SIC) - Big Data Course
+- **Nhóm thực hiện:** Group 3
+- **Thành viên:**
+  - **Dương Đình Hoàng (Leader):** Kiến trúc hệ thống, Docker, Pipeline tự động, PySpark MLlib KMeans.
+  - **Đặng Văn Vinh:** Giả lập dữ liệu web log, cấu hình Apache Flume Ingestion nạp HDFS.
+  - **Nông Minh Trí:** Cấu trúc phân vùng lưu trữ HDFS, tiền xử lý dữ liệu Map-only trên YARN.
+  - **Triệu Văn Huy:** Tổng hợp số liệu phân tán bằng Hadoop MapReduce trên YARN.
+  - **Lý Việt Hoàng:** Bộ luật phát hiện bất thường (Rule-based), kiểm thử benchmark, báo cáo.
 
 ---
 
-## 1. Kiến Trúc Luồng Dữ Liệu Hoàn Chỉnh (Daily Batch Architecture)
+## 1. Kiến Trúc Luồng Dữ Liệu
 
-Hệ thống hoạt động theo mô hình **Batch Processing ngoại tuyến (Offline Log Analytics)** để phân tích toàn diện 24 giờ dữ liệu của ngày hôm trước:
+Mô hình xử lý lô (Daily Batch) cho dữ liệu nhật ký 24 giờ:
 
 ```text
-[Web Server Logs / Generator] 
-       │ (Sinh 150,000+ logs/24h)
+[Web Server Logs / Generator]
+       │ (150,000+ logs/ngày)
        ▼
  [Apache Flume Ingestion]
-       │ (Nạp trực tiếp vào HDFS Raw Zone)
+       │ (Nạp vào HDFS Raw Zone)
        ▼
 [HDFS Raw Zone] (/data/raw/YYYY-MM-DD/*.log)
        │
        ▼
 [YARN Preprocessing Job]
-       │ (Map-only Streaming lọc rác & chuẩn hóa trên YARN)
+       │ (Map-only Streaming lọc rác & chuẩn hóa)
        ▼
 [HDFS Cleaned Zone] (/data/cleaned/YYYY-MM-DD/part-*)
        │
        ▼
 [YARN MapReduce Aggregation]
-       │ (Tính toán phân tán chỉ số lưu lượng, lỗi, độ trễ)
+       │ (Tính toán lưu lượng, lỗi, độ trễ theo giờ/IP)
        ▼
 [HDFS Output Zone] (/data/output/YYYY-MM-DD/part-*)
        │
-       ├──► [Luồng 1 (Lịch sử N ngày)]: Huấn luyện PySpark MLlib KMeans ──► [HDFS Model] (/models/kmeans_anomaly_model)
-       │                                                                            │
-       └──► [Luồng 2 (Ngày hôm nay)]: Bộ luật 6 Rule (Lọc thô)                     │
-                                           │                                        │
-                                           └──► Thẩm định & Loại bỏ báo động giả ◄──┘
-                                                       │
-                                                       ▼
-                                       [HDFS Reports Zone] (/data/reports/YYYY-MM-DD/anomaly_report.json)
+       ├──► [Lịch sử N ngày] ──► Huấn luyện PySpark MLlib KMeans ──► [HDFS Model]
+       │                                                                   │
+       └──► [Ngày hiện tại]  ──► 6 Quy tắc lọc thô (Rule-based)           │
+                                            │                              │
+                                            └──► Thẩm định khử báo động giả ◄┘
+                                                        │
+                                                        ▼
+                                       [HDFS Reports] (/data/reports/YYYY-MM-DD/anomaly_report.json)
 ```
 
 ---
 
-## 2. Cấu Trúc Thư Mục Dự Án
+## 2. Cấu Trúc Thư Mục
 
 ```text
 log-simulation/
-├── config/             # Cấu hình trung tâm (HDFS paths, thresholds, dynamic JARs)
-├── data/               # Module sinh log web server
-├── flume/              # Cấu hình Apache Flume Agent nạp HDFS (start_flume.sh cho Terminal 1)
-├── preprocessing/      # Tiền xử lý phân tán Map-only trên YARN 
-├── mapreduce/          # Hadoop Streaming Mapper & Reducer trên YARN
-├── anomaly/            # Bộ lọc Rule-based & Mô hình Machine Learning (PySpark KMeans)
-├── Dockerfile          # Docker image đóng gói ứng dụng pipeline & Hadoop client
-├── docker-compose.yml  # Cấu hình cụm Hadoop và Pipeline Runner
-├── hadoop.env          # Biến môi trường cho cụm Hadoop
-├── init_history.sh     # Script khởi tạo dữ liệu lịch sử nhiều ngày (~200MB - 300MB)
-├── run_pipeline.sh     # Script chạy tự động pipeline hàng ngày trên YARN & HDFS (Terminal 2)
-├── requirements.txt    # Thư viện Machine Learning (pyspark, numpy)
-└── README.md           # Hướng dẫn chi tiết
+├── config/             # Cấu hình HDFS paths, ngưỡng cảnh báo, JARs
+├── data/               # Module sinh dữ liệu log giả lập
+├── flume/              # Cấu hình và script chạy Apache Flume Agent
+├── preprocessing/      # Tiền xử lý Map-only trên YARN
+├── mapreduce/          # Mapper & Reducer Hadoop Streaming trên YARN
+├── anomaly/            # Bộ lọc 6 rule & mô hình PySpark KMeans
+├── Dockerfile          # Image đóng gói pipeline & Hadoop client
+├── docker-compose.yml  # Cụm Hadoop (NameNode, DataNode, YARN) + Pipeline Runner
+├── hadoop.env          # Biến môi trường cụm Hadoop
+├── init_history.sh     # Script sinh và xử lý log lịch sử nhiều ngày (200MB - 300MB)
+├── run_pipeline.sh     # Script chạy tự động pipeline hàng ngày
+└── requirements.txt    # Thư viện Python (pyspark, numpy)
 ```
 
 ---
 
-## 3. Hướng Dẫn Vận Hành Từng Bước
+## 3. Hướng Dẫn Vận Hành
 
-### Bước 1 (Terminal 1): Khởi động dịch vụ Apache Flume
-Flume Agent cần chạy thường trực ở Terminal 1 để theo dõi thư mục `data/spool/` và tự động nạp log vào HDFS:
+### Cách 1: Chạy bằng Docker Compose (Khuyên dùng)
+
+Toàn bộ cụm Hadoop, YARN và ứng dụng pipeline được đóng gói sẵn.
+
+1. **Build image và khởi động cụm:**
+   ```bash
+   docker-compose build
+   docker-compose up -d
+   ```
+
+2. **Kiểm tra trạng thái container:**
+   ```bash
+   docker-compose ps
+   ```
+   Web UI theo dõi:
+   - HDFS NameNode: `http://localhost:9870`
+   - YARN ResourceManager: `http://localhost:8088`
+
+3. **Theo dõi tiến trình chạy pipeline:**
+   ```bash
+   docker-compose logs -f pipeline
+   ```
+
+4. **Truy cập vào container pipeline để chạy lệnh thủ công (nếu cần):**
+   ```bash
+   docker exec -it log-pipeline-runner bash
+   ```
+
+5. **Dừng cụm:**
+   ```bash
+   docker-compose down
+   ```
+
+---
+
+### Cách 2: Vận hành trực tiếp trên máy ảo Ubuntu
+
+> **Quan trọng:** Phải chạy Terminal 1 trước và đảm bảo Flume Agent **đã khởi động hoàn toàn**, sau đó mới chạy Terminal 2. Các lệnh `init_history.sh` và `run_pipeline.sh` ở Terminal 2 đều gọi `ingest_to_hdfs.py` để chờ Flume nạp log — nếu Flume chưa chạy, script sẽ báo lỗi và thoát sau 30 giây.
+
+#### Terminal 1 (mở trước, giữ chạy thường trực)
 ```bash
 bash flume/start_flume.sh
 ```
+Script tự khởi động Hadoop/YARN nếu chưa bật, sau đó lắng nghe thư mục `data/spool/`.  
+**Đợi đến khi thấy dòng `INFO lifecycleSupervisor` trên Terminal 1** trước khi sang Terminal 2.
 
----
-
-### Bước 2 (Terminal 2): Khởi tạo dữ liệu lịch sử (~200 MB - 300 MB)
-Để có đủ dữ liệu lịch sử phục vụ việc huấn luyện mô hình KMeans, chạy script khởi tạo hàng loạt (mặc định 7 ngày, ~225 MB log; hoặc tùy chọn 10 ngày, ~320 MB):
+#### Terminal 2 — Tạo dữ liệu lịch sử (lần đầu duy nhất)
 ```bash
-# Tạo dữ liệu lịch sử 7 ngày (mỗi ngày 200.000 log, tổng ~225 MB):
 bash init_history.sh 7
-
-# (Tùy chọn) Tạo 10 ngày (~320 MB):
-# bash init_history.sh 10
 ```
-*Script sẽ tự động lặp qua từng ngày: Sinh log $\rightarrow$ Flume nạp vào HDFS $\rightarrow$ Tiền xử lý Map-only trên YARN $\rightarrow$ MapReduce tổng hợp chỉ số lưu vào `/data/output/<DATE>/`.*
+Lặp qua 7 ngày, mỗi ngày: sinh log vào `data/spool/` → chờ Flume nạp HDFS → tiền xử lý YARN → MapReduce tổng hợp. Kết quả lưu tại `/data/output/<DATE>/`.
 
----
-
-### Bước 3 (Terminal 2): Huấn luyện mô hình KMeans (Luồng 1)
-Sau khi đã có dữ liệu lịch sử trên HDFS, tiến hành huấn luyện mô hình phân tán trên cụm YARN:
+#### Terminal 2 — Huấn luyện mô hình KMeans (lần đầu duy nhất, sau khi có lịch sử)
 ```bash
 spark-submit --master yarn anomaly/train_kmeans_model.py
 ```
-*Script đọc dữ liệu tổng hợp lịch sử từ HDFS `/data/output/*/part-*`, huấn luyện PySpark MLlib KMeans ($K=2$) phân tán trên các worker node, tính điểm Silhouette và lưu mô hình trực tiếp lên HDFS tại `/models/kmeans_anomaly_model`.*
+Mô hình lưu lên HDFS tại `/models/kmeans_anomaly_model`.
 
----
-
-### Bước 4 (Terminal 2): Vận hành xử lý lô hàng ngày (Luồng 2)
-Mỗi ngày, chạy pipeline phân tích lô cho ngày hiện tại:
+#### Terminal 2 — Chạy pipeline phân tích hàng ngày
 ```bash
 bash run_pipeline.sh
 
-# (Tùy chọn) Chạy cho một ngày cụ thể:
-# bash run_pipeline.sh 2026-10-08
+# Hoặc chỉ định ngày cụ thể:
+# bash run_pipeline.sh 2026-10-15
 ```
-*Pipeline sẽ sinh log ngày hôm nay $\rightarrow$ Flume nạp vào HDFS $\rightarrow$ Tiền xử lý $\rightarrow$ MapReduce $\rightarrow$ Nạp mô hình có sẵn từ HDFS để thẩm định và xuất báo cáo lên `/data/reports/<LOG_DATE>/anomaly_report.json`.*
+Sinh log ngày hiện tại → Flume nạp HDFS → tiền xử lý → MapReduce → phát hiện bất thường → lưu báo cáo HDFS `/data/reports/<DATE>/anomaly_report.json`.
 
 ---
 
-## 4. Cơ Chế Phát Hiện Bất Thường & Tăng Độ Chính Xác (Rule + KMeans ML)
+## 4. Cơ Chế Phát Hiện Bất Thường
 
-Hệ thống kết hợp giữa **Bộ luật** và **Mô hình Học máy KMeans** theo quy trình 2 giai đoạn:
+Quy trình kết hợp 2 giai đoạn:
 
-* **Giai đoạn 1 (Bộ luật - Lọc thô):**
-  1. *Quy tắc 1 (Lượng truy cập tăng vọt):* Số lượng yêu cầu trong một giờ vượt ngưỡng $Mean + 2 \times StdDev$.
-  2. *Quy tắc 2 (Tỉ lệ log lỗi cao):* Số log báo lỗi (`ERROR`) trong một giờ chiếm hơn 5% tổng lượng truy cập.
-  3. *Quy tắc 3 (Tỉ lệ lỗi máy chủ cao):* Các mã lỗi 500/503 chiếm hơn 5% lượng truy cập trong giờ.
-  4. *Quy tắc 4 (Lưu lượng IP cao):* Phát hiện các địa chỉ IP gửi trên 1.000 req/giờ.
-  5. *Quy tắc 5 (Thời gian xử lý quá chậm):* Thời gian phản hồi trung bình trong một giờ vượt quá 2.000 ms.
-  6. *Quy tắc 6 (Đường dẫn gặp lỗi nhiều nhất):* Liệt kê Top 5 endpoints bị lỗi nhiều lần nhất trong ngày.
+1. **Giai đoạn 1 — Lọc thô bằng 6 Rule (`anomaly/detector.py`):**
+   - **Rule 1 (Spike lưu lượng):** Số request/giờ vượt ngưỡng `Mean + 2 * StdDev`.
+   - **Rule 2 (Tỷ lệ log lỗi):** Log cấp độ `ERROR` chiếm > 5% tổng request trong giờ.
+   - **Rule 3 (Lỗi Server 5xx):** Mã HTTP 500/503 chiếm > 5% request trong giờ.
+   - **Rule 4 (IP bất thường):** Một IP gửi > 1.000 request/giờ.
+   - **Rule 5 (Độ trễ cao):** Thời gian phản hồi trung bình trong giờ > 2.000 ms.
+   - **Rule 6 (Top lỗi Endpoint):** 5 URL có số lần lỗi nhiều nhất trong ngày.
 
-* **Giai đoạn 2 (Thẩm định bằng KMeans - Nâng cao độ chính xác):**
-  - Tiếp nhận danh sách các khung giờ và IP nghi vấn từ Giai đoạn 1.
-  - Sử dụng mô hình `KMeans` phân cụm đa chiều `[Traffic, Lỗi %, Lỗi 5xx %, Độ trễ]` sau khi chuẩn hóa bằng `StandardScaler`.
-  - Đo khoảng cách từ mỗi điểm tới tâm cụm bình thường để thẩm định:
-    - **Loại bỏ báo động giả (False Positives):** Các trường hợp chỉ vì lưu lượng hơi cao nhưng không gây lỗi (như khách lớn/bot lành tính) được xác nhận an toàn, không cảnh báo sai.
-    - **Xác thực bất thường thực sự (True Anomalies):** Các khung giờ hoặc IP dị biệt văng xa khỏi tâm cụm được gắn cờ báo động chính xác.
-
-
+2. **Giai đoạn 2 — Thẩm định bằng KMeans (`anomaly/kmeans_verifier.py`):**
+   - Đưa các điểm nghi vấn từ Giai đoạn 1 vào mô hình KMeans 4 chiều: `[Traffic, Error %, 5xx %, Latency]`.
+   - Đo khoảng cách tới tâm cụm bình thường:
+     - **Bỏ báo động giả (False Positive):** Khung giờ traffic cao nhưng không phát sinh lỗi và độ trễ thấp được xếp về bình thường.
+     - **Xác nhận bất thường thực sự (True Anomaly):** Điểm lệch xa tâm cụm được đánh dấu cảnh báo vào file báo cáo JSON trên HDFS `/data/reports/<DATE>/anomaly_report.json`.

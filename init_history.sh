@@ -27,8 +27,40 @@ echo " Dự kiến tổng log   : $(( NUM_DAYS * LOGS_PER_DAY )) bản ghi (~$((
 echo " Hadoop Home        : $HADOOP_HOME"
 echo "=========================================================="
 
-# 1. Kiểm tra NameNode và Safe Mode
-hdfs dfsadmin -safemode leave 2>/dev/null || true
+# 1. Kiểm tra & Khởi động dịch vụ Hadoop (HDFS & YARN)
+if hdfs dfs -ls / &> /dev/null; then
+    echo "  [INFO] Cụm Hadoop (HDFS) đang hoạt động."
+    hdfs dfsadmin -safemode leave 2>/dev/null || true
+else
+    CURRENT_USER=$(whoami)
+    echo "  [CẢNH BÁO] Chưa kết nối được HDFS. Khởi động Hadoop với user: $CURRENT_USER..."
+    if [ -f "${HADOOP_HOME}/sbin/start-all.sh" ]; then
+        export HDFS_NAMENODE_USER=$CURRENT_USER
+        export HDFS_DATANODE_USER=$CURRENT_USER
+        export HDFS_SECONDARYNAMENODE_USER=$CURRENT_USER
+        export YARN_RESOURCEMANAGER_USER=$CURRENT_USER
+        export YARN_NODEMANAGER_USER=$CURRENT_USER
+        "${HADOOP_HOME}/sbin/start-all.sh" || true
+        
+        for i in {1..15}; do
+            if hdfs dfs -ls / &> /dev/null; then
+                echo "  [INFO] Hadoop HDFS đã sẵn sàng."
+                break
+            fi
+            sleep 2
+        done
+    fi
+fi
+
+if ! yarn node -list &> /dev/null; then
+    CURRENT_USER=$(whoami)
+    export YARN_RESOURCEMANAGER_USER=$CURRENT_USER
+    export YARN_NODEMANAGER_USER=$CURRENT_USER
+    if [ -f "${HADOOP_HOME}/sbin/start-yarn.sh" ]; then
+        "${HADOOP_HOME}/sbin/start-yarn.sh" || true
+        sleep 5
+    fi
+fi
 
 # 2. Sinh danh sách ngày lịch sử lùi từ hôm qua
 DATES=()

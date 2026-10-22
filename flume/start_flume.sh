@@ -24,7 +24,32 @@ mkdir -p "$SPOOL_DIR"
 # 2. Sinh file cấu hình runtime với đường dẫn spoolDir tuyệt đối của máy hiện tại
 sed "s|@SPOOL_DIR@|${SPOOL_DIR}|g" "${SCRIPT_DIR}/flume-hdfs.conf" > "$RUNTIME_CONF"
 
-# 3. Nạp thư viện Hadoop vào Classpath của Flume để ghi vào HDFS Sink
+# 3. Kiểm tra & Tự động khởi động Hadoop nếu chưa chạy
+if hdfs dfs -ls / &> /dev/null; then
+    echo " [INFO] Dịch vụ Hadoop (HDFS) đang hoạt động."
+    hdfs dfsadmin -safemode leave 2>/dev/null || true
+else
+    CURRENT_USER=$(whoami)
+    echo " [CẢNH BÁO] Chưa kết nối được HDFS. Tự động khởi động Hadoop..."
+    if [ -f "${HADOOP_HOME}/sbin/start-all.sh" ]; then
+        export HDFS_NAMENODE_USER=$CURRENT_USER
+        export HDFS_DATANODE_USER=$CURRENT_USER
+        export HDFS_SECONDARYNAMENODE_USER=$CURRENT_USER
+        export YARN_RESOURCEMANAGER_USER=$CURRENT_USER
+        export YARN_NODEMANAGER_USER=$CURRENT_USER
+        "${HADOOP_HOME}/sbin/start-all.sh" || true
+        
+        for i in {1..15}; do
+            if hdfs dfs -ls / &> /dev/null; then
+                echo " [INFO] Hadoop HDFS đã sẵn sàng."
+                break
+            fi
+            sleep 2
+        done
+    fi
+fi
+
+# 4. Nạp thư viện Hadoop vào Classpath của Flume để ghi vào HDFS Sink
 if [ -d "$HADOOP_HOME" ]; then
     export FLUME_CLASSPATH=$("${HADOOP_HOME}/bin/hadoop" classpath 2>/dev/null || true)
     echo " [INFO] Đã nạp Hadoop Classpath."
@@ -48,9 +73,8 @@ if ! command -v flume-ng &> /dev/null; then
     exit 1
 fi
 
-echo " [INFO] Flume Agent 'a1' lắng nghe tại: $SPOOL_DIR"
-echo " [INFO] File log mới sẽ được nạp lên HDFS (/data/raw/%Y-%m-%d/)"
-echo "----------------------------------------------------------"
+# 5. Cấp đủ RAM cho Flume JVM để tránh OutOfMemoryError khi xử lý file log lớn
+export JAVA_OPTS="-Xms256m -Xmx1024m ${JAVA_OPTS:-}"
 
 exec flume-ng agent \
     --conf-file "$RUNTIME_CONF" \
