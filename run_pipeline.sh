@@ -78,6 +78,11 @@ fi
 # BUOC 2: SINH DU LIEU LOG
 # -----------------------------------------------------------------------------
 echo -e "\n[2/6] Sinh du lieu log web server cho ngay $LOG_DATE..."
+# Don dep file da hoan thanh cu trong data/spool de tranh day o dia
+rm -f data/spool/*.COMPLETED 2>/dev/null || true
+# Don dep du lieu HDFS Raw cu cua ngay do (neu co) de tranh cong don nhieu lan chay
+hdfs dfs -rm -r -f "/data/raw/$LOG_DATE" 2>/dev/null || true
+
 python3 data/generate_logs.py
 
 # -----------------------------------------------------------------------------

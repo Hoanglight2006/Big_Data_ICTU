@@ -15,7 +15,8 @@ from config.settings import (
     MAX_ERROR_RATE_PERCENT,
     MAX_5XX_RATE_PERCENT,
     MAX_IP_REQUESTS_PER_HOUR,
-    MAX_RESPONSE_TIME_MS
+    MAX_RESPONSE_TIME_MS,
+    MAX_ENDPOINT_ERROR_THRESHOLD
 )
 
 RESULTS_FILE = "data/mapreduce_results.txt"
@@ -264,16 +265,28 @@ def detect_anomalies(data, date_str=LOG_DATE):
     if not found_flood:
         print("   Không có IP nào gửi yêu cầu quá mức quy định.")
 
-    # Rule 6: Thống kê xếp hạng endpoint gặp nhiều lỗi nhất (Tách riêng khỏi anomalies)
-    print("\nThống kê các đường dẫn chức năng (endpoints) gặp lỗi nhiều nhất:")
+    # Rule 6: Thống kê & Cảnh báo các đường dẫn chức năng (endpoints) gặp lỗi nhiều nhất
+    print(f"\nKiểm tra & xếp hạng các đường dẫn chức năng gặp lỗi (Ngưỡng cảnh báo >= {MAX_ENDPOINT_ERROR_THRESHOLD:,} lỗi):")
     sorted_endpoints = sorted(endpoint_errs.items(), key=lambda x: x[1], reverse=True)[:10]
     top_error_endpoints = []
     for ep, count in sorted_endpoints:
-        print(f"   - {ep:<35}: {count:,} lần lỗi")
         top_error_endpoints.append({
             "endpoint": ep,
             "error_count": count
         })
+        if count >= MAX_ENDPOINT_ERROR_THRESHOLD:
+            severity = "CRITICAL" if count >= int(MAX_ENDPOINT_ERROR_THRESHOLD * 1.5) else "WARNING"
+            print(f"   [CẢNH BÁO] Đường dẫn: {ep:<30} | Số lỗi: {count:,} -> Vượt ngưỡng lỗi cho phép!")
+            anomalies.append({
+                "rule": "R06_ENDPOINT_ERROR_SPIKE",
+                "severity": severity,
+                "endpoint": ep,
+                "error_count": count,
+                "threshold": MAX_ENDPOINT_ERROR_THRESHOLD,
+                "message": f"Endpoint {ep} có số lượt lỗi cao bất thường: {count:,} lỗi (ngưỡng {MAX_ENDPOINT_ERROR_THRESHOLD:,})"
+            })
+        else:
+            print(f"   - {ep:<35}: {count:,} lần lỗi")
 
     unique_affected_hours = sorted(list(set(a["hour"] for a in anomalies if "hour" in a)))
     print("\n" + "=" * 80)

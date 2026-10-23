@@ -71,10 +71,11 @@ ANOMALY_IP = os.getenv("ANOMALY_IP", "")                         # Để trống
 MAPREDUCE_OUTPUT_FILE = "data/mapreduce_results.txt"
 
 # --- Anomaly Detection Thresholds ---
-THRESHOLD_WARNING_STD = float(os.getenv("THRESHOLD_WARNING_STD", "2.0"))   # WARNING: vượt mean + 2*std
-THRESHOLD_CRITICAL_STD = float(os.getenv("THRESHOLD_CRITICAL_STD", "3.0"))  # CRITICAL: vượt mean + 3*std
+THRESHOLD_WARNING_STD = float(os.getenv("THRESHOLD_WARNING_STD", "1.2"))   # WARNING: vượt mean + 1.2*std (phù hợp chu kỳ ngày/đêm)
+THRESHOLD_CRITICAL_STD = float(os.getenv("THRESHOLD_CRITICAL_STD", "1.8"))  # CRITICAL: vượt mean + 1.8*std
 MAX_ERROR_RATE_PERCENT = float(os.getenv("MAX_ERROR_RATE_PERCENT", "5.0"))  # Tỉ lệ log ERROR tối đa cho phép (%)
 MAX_5XX_RATE_PERCENT = float(os.getenv("MAX_5XX_RATE_PERCENT", "5.0"))      # Tỉ lệ 5xx tối đa cho phép (%)
 MAX_IP_REQUESTS_PER_HOUR = int(os.getenv("MAX_IP_REQUESTS_PER_HOUR", "1000")) # Số request tối đa từ 1 IP mỗi giờ
 MAX_RESPONSE_TIME_MS = float(os.getenv("MAX_RESPONSE_TIME_MS", "2000"))     # Response time tối đa (ms)
+MAX_ENDPOINT_ERROR_THRESHOLD = int(os.getenv("MAX_ENDPOINT_ERROR_THRESHOLD", "15000")) # Số lỗi tối đa cho 1 endpoint (Quy tắc 6)
 

@@ -85,6 +85,9 @@ def make_normal_log(hour, minute, second, ip_pool):
 
     if status_code >= 500:
         level = "ERROR"
+    elif status_code in [400, 401]:
+        # Lỗi xác thực hoặc yêu cầu sai hỏng nghiêm trọng được ứng dụng ghi nhận là ERROR
+        level = random.choices(["ERROR", "WARN"], weights=[0.25, 0.75], k=1)[0]
     elif status_code >= 400:
         level = "WARN"
     else:
@@ -131,7 +134,13 @@ def make_anomaly_log(hour, minute, second, flood_ip=None):
         k=1
     )[0]
 
-    level = "ERROR" if status_code >= 500 else "WARN"
+    # Phân tách: mã 429 (Flood) hoặc 404 bất thường có thể log ERROR ở mức ứng dụng
+    if status_code >= 500 or status_code == 429:
+        level = "ERROR"
+    elif status_code == 404:
+        level = random.choices(["ERROR", "WARN"], weights=[0.4, 0.6], k=1)[0]
+    else:
+        level = "WARN"
     response_time = random.randint(2500, 9500)
 
     ip = flood_ip if flood_ip else f"192.168.{random.randint(1,10)}.{random.randint(1,254)}"
@@ -221,8 +230,8 @@ def generate_logs():
         is_anomaly_hour = hour in anomaly_hours
 
         if is_anomaly_hour:
-            # Tăng mạnh số lượng log trong giờ bất thường (tăng thêm 60% - 100%)
-            spike_multiplier = random.uniform(1.6, 2.2)
+            # Tăng mạnh số lượng log trong giờ bất thường (tăng gấp 2.5 - 3.5 lần)
+            spike_multiplier = random.uniform(2.5, 3.5)
             count = int(base_count * spike_multiplier)
             print(f"  [BẤT THƯỜNG] Giờ {hour:02d}:00 -> Phát sinh lưu lượng tăng vọt ({count:,} log)")
         else:
