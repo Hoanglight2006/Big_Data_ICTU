@@ -12,6 +12,7 @@ from config.settings import (
     LOG_DATE,
     THRESHOLD_WARNING_STD,
     THRESHOLD_CRITICAL_STD,
+    MAX_ERROR_RATE_PERCENT,
     MAX_5XX_RATE_PERCENT,
     MAX_IP_REQUESTS_PER_HOUR,
     MAX_RESPONSE_TIME_MS
@@ -172,51 +173,65 @@ def detect_anomalies(data, date_str=LOG_DATE):
         status_flags = []
 
         # Rule 1: Traffic Spike
-        if total >= crit_threshold:
+        if crit_threshold > 0 and total >= crit_threshold:
             status_flags.append("Truy cập tăng vọt")
             anomalies.append({
                 "rule": "R01_TRAFFIC_SPIKE",
                 "severity": "CRITICAL",
                 "hour": h,
-                "message": f"Lưu lượng giờ {h}:00 đạt {total:,} yêu cầu (tăng đột biến so với bình thường)"
+                "total_requests": total,
+                "threshold": round(crit_threshold, 2),
+                "message": f"Lưu lượng giờ {h}:00 đạt {total:,} yêu cầu (vượt ngưỡng báo động {crit_threshold:.0f})"
             })
-        elif total >= warn_threshold:
+        elif warn_threshold > 0 and total >= warn_threshold:
             status_flags.append("Lưu lượng cao")
             anomalies.append({
                 "rule": "R01_TRAFFIC_SPIKE",
                 "severity": "WARNING",
                 "hour": h,
-                "message": f"Lưu lượng giờ {h}:00 đạt {total:,} yêu cầu (vượt ngưỡng cảnh báo)"
+                "total_requests": total,
+                "threshold": round(warn_threshold, 2),
+                "message": f"Lưu lượng giờ {h}:00 đạt {total:,} yêu cầu (vượt ngưỡng cảnh báo {warn_threshold:.0f})"
             })
 
-        # Rule 2: High Error Rate
-        if err_rate >= MAX_5XX_RATE_PERCENT:
+        # Rule 2: High Error Rate (Tỷ lệ log ERROR)
+        if total > 0 and err_rate >= MAX_ERROR_RATE_PERCENT:
             status_flags.append("Nhiều log lỗi")
             anomalies.append({
                 "rule": "R02_ERROR_RATE",
-                "severity": "CRITICAL" if err_rate > 10 else "WARNING",
+                "severity": "CRITICAL" if err_rate >= 10.0 else "WARNING",
                 "hour": h,
-                "message": f"Giờ {h}:00 có {err_count} log lỗi ({err_rate:.1f}% tổng yêu cầu)"
+                "error_count": err_count,
+                "total_requests": total,
+                "error_rate": round(err_rate, 2),
+                "threshold": MAX_ERROR_RATE_PERCENT,
+                "message": f"Giờ {h}:00 có {err_count:,} log lỗi ERROR ({err_rate:.1f}% tổng yêu cầu, ngưỡng {MAX_ERROR_RATE_PERCENT}%)"
             })
 
-        # Rule 3: High 5xx Rate
-        if r5xx_rate >= MAX_5XX_RATE_PERCENT:
+        # Rule 3: High 5xx Rate (Tỷ lệ lỗi HTTP 5xx từ server)
+        if total > 0 and r5xx_rate >= MAX_5XX_RATE_PERCENT:
             status_flags.append("Lỗi máy chủ 5xx")
             anomalies.append({
                 "rule": "R03_HTTP_5XX_RATE",
                 "severity": "CRITICAL",
                 "hour": h,
-                "message": f"Giờ {h}:00 có {c5xx} lỗi hệ thống ({r5xx_rate:.1f}%)"
+                "error_5xx_count": c5xx,
+                "total_requests": total,
+                "error_5xx_rate": round(r5xx_rate, 2),
+                "threshold": MAX_5XX_RATE_PERCENT,
+                "message": f"Giờ {h}:00 có {c5xx:,} lỗi HTTP 5xx ({r5xx_rate:.1f}%, ngưỡng {MAX_5XX_RATE_PERCENT}%)"
             })
 
-        # Rule 5: Response Time
+        # Rule 5: Response Time (Thời gian phản hồi trung bình theo giờ)
         if avg_resp >= MAX_RESPONSE_TIME_MS:
             status_flags.append("Xử lý chậm")
             anomalies.append({
                 "rule": "R05_RESPONSE_TIME",
                 "severity": "WARNING",
                 "hour": h,
-                "message": f"Thời gian phản hồi giờ {h}:00 bị chậm: {avg_resp:.1f}ms"
+                "avg_response_time_ms": round(avg_resp, 2),
+                "threshold": MAX_RESPONSE_TIME_MS,
+                "message": f"Thời gian phản hồi trung bình giờ {h}:00 bị chậm: {avg_resp:.1f}ms (vượt ngưỡng {MAX_RESPONSE_TIME_MS:.0f}ms)"
             })
 
         status_text = ", ".join(status_flags) if status_flags else "Bình thường"
@@ -229,10 +244,11 @@ def detect_anomalies(data, date_str=LOG_DATE):
     print("=" * 80)
 
     # Rule 4: IP Flood Detection
-    print("\nKiểm tra dấu hiệu spam / gửi yêu cầu quá tải theo IP (Ngưỡng > 1.000 yêu cầu/giờ):")
+    print(f"\nKiểm tra dấu hiệu spam / gửi yêu cầu quá tải theo IP (Ngưỡng >= {MAX_IP_REQUESTS_PER_HOUR:,} yêu cầu/giờ):")
     found_flood = False
-    for h, ip_map in ip_reqs.items():
-        for ip, count in ip_map.items():
+    for h in sorted(ip_reqs.keys()):
+        ip_map = ip_reqs[h]
+        for ip, count in sorted(ip_map.items(), key=lambda x: x[1], reverse=True):
             if count >= MAX_IP_REQUESTS_PER_HOUR:
                 found_flood = True
                 print(f"   [CẢNH BÁO] IP: {ip:<15} | Giờ: {h}:00 | Gửi: {count:,} yêu cầu/giờ -> Có dấu hiệu spam hoặc phá hoại!")
@@ -241,22 +257,30 @@ def detect_anomalies(data, date_str=LOG_DATE):
                     "severity": "CRITICAL",
                     "hour": h,
                     "ip": ip,
-                    "message": f"IP {ip} gửi {count:,} yêu cầu trong giờ {h}:00 (Vượt ngưỡng {MAX_IP_REQUESTS_PER_HOUR})"
+                    "request_count": count,
+                    "threshold": MAX_IP_REQUESTS_PER_HOUR,
+                    "message": f"IP {ip} gửi {count:,} yêu cầu trong giờ {h}:00 (vượt ngưỡng {MAX_IP_REQUESTS_PER_HOUR:,})"
                 })
     if not found_flood:
         print("   Không có IP nào gửi yêu cầu quá mức quy định.")
 
-    # Rule 6: Top Endpoints gặp lỗi
-    print("\nCác đường dẫn chức năng gặp lỗi nhiều nhất:")
-    sorted_endpoints = sorted(endpoint_errs.items(), key=lambda x: x[1], reverse=True)[:5]
+    # Rule 6: Thống kê xếp hạng endpoint gặp nhiều lỗi nhất (Tách riêng khỏi anomalies)
+    print("\nThống kê các đường dẫn chức năng (endpoints) gặp lỗi nhiều nhất:")
+    sorted_endpoints = sorted(endpoint_errs.items(), key=lambda x: x[1], reverse=True)[:10]
+    top_error_endpoints = []
     for ep, count in sorted_endpoints:
-        print(f"   - {ep:<30}: {count:,} lần lỗi")
+        print(f"   - {ep:<35}: {count:,} lần lỗi")
+        top_error_endpoints.append({
+            "endpoint": ep,
+            "error_count": count
+        })
 
+    unique_affected_hours = sorted(list(set(a["hour"] for a in anomalies if "hour" in a)))
     print("\n" + "=" * 80)
-    print(f"Tổng kết: Đã phát hiện {len(anomalies)} dấu hiệu bất thường trong ngày.")
+    print(f"Tổng kết: Đã ghi nhận {len(anomalies)} cảnh báo bất thường tại {len(unique_affected_hours)} khung giờ trong ngày.")
     print("=" * 80)
 
-    # Cấu trúc báo cáo JSON
+    # Cấu trúc báo cáo JSON (Giữ nguyên schema gốc cho Power BI, bổ sung top_error_endpoints và affected_hours_count)
     report_data = {
         "report_date": date_str,
         "baseline": {
@@ -266,33 +290,43 @@ def detect_anomalies(data, date_str=LOG_DATE):
             "critical_threshold": round(crit_threshold, 2)
         },
         "total_anomalies_detected": len(anomalies),
-        "anomalies": anomalies
+        "affected_hours_count": len(unique_affected_hours),
+        "anomalies": anomalies,
+        "top_error_endpoints": top_error_endpoints
     }
 
     report_json_str = json.dumps(report_data, indent=2, ensure_ascii=False)
 
-    # 1. Lưu trực tiếp lên HDFS (Không cần tải file về máy)
+    # 1. Lưu trực tiếp lên HDFS (nếu có cluster Hadoop)
     hdfs_report_dir = f"/data/reports/{date_str}"
     try:
-        subprocess.run(["hdfs", "dfs", "-mkdir", "-p", hdfs_report_dir], capture_output=True)
-        put_proc = subprocess.run(["hdfs", "dfs", "-put", "-f", "-", f"{hdfs_report_dir}/anomaly_report.json"],
-                                  input=report_json_str, text=True, capture_output=True)
-        if put_proc.returncode == 0:
-            print(f"[INFO] Báo cáo bất thường đã được lưu trực tiếp trên HDFS:")
-            print(f"       -> {hdfs_report_dir}/anomaly_report.json")
-    except Exception:
-        pass
+        mkdir_proc = subprocess.run(["hdfs", "dfs", "-mkdir", "-p", hdfs_report_dir], capture_output=True, text=True)
+        if mkdir_proc.returncode == 0:
+            put_proc = subprocess.run(["hdfs", "dfs", "-put", "-f", "-", f"{hdfs_report_dir}/anomaly_report.json"],
+                                      input=report_json_str, text=True, capture_output=True)
+            if put_proc.returncode == 0:
+                print(f"[INFO] Báo cáo bất thường đã được lưu trực tiếp trên HDFS:")
+                print(f"       -> {hdfs_report_dir}/anomaly_report.json")
+            else:
+                print(f"[WARN] Không thể lưu file báo cáo lên HDFS (Mã lỗi: {put_proc.returncode}): {put_proc.stderr.strip()}")
+        else:
+            print(f"[WARN] Không thể tạo thư mục báo cáo trên HDFS: {mkdir_proc.stderr.strip()}")
+    except Exception as e:
+        print(f"[WARN] Lệnh HDFS không thực thi được: {e}")
 
-    # 2. Lưu fallback local nếu thư mục data/ có sẵn
-    if os.path.exists("data"):
-        try:
-            with open(REPORT_OUTPUT_FILE, "w", encoding="utf-8") as f:
-                f.write(report_json_str)
-            daily_file = f"data/anomaly_report_{date_str}.json"
-            with open(daily_file, "w", encoding="utf-8") as f:
-                f.write(report_json_str)
-        except Exception:
-            pass
+    # 2. Luôn lưu bản sao cục bộ để dự phòng và kiểm tra
+    try:
+        os.makedirs("data", exist_ok=True)
+        with open(REPORT_OUTPUT_FILE, "w", encoding="utf-8") as f:
+            f.write(report_json_str)
+        daily_file = f"data/anomaly_report_{date_str}.json"
+        with open(daily_file, "w", encoding="utf-8") as f:
+            f.write(report_json_str)
+        print(f"[INFO] Báo cáo dự phòng cục bộ đã được lưu tại:")
+        print(f"       -> {REPORT_OUTPUT_FILE}")
+        print(f"       -> {daily_file}")
+    except Exception as e:
+        print(f"[ERROR] Không thể lưu file dự phòng cục bộ: {e}")
 
 if __name__ == "__main__":
     lines, date_str = load_mapreduce_lines()

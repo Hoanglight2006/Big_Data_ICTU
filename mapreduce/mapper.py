@@ -4,13 +4,19 @@ import json
 def parse_hour(timestamp_str):
     """
     Trích xuất giờ từ ISO 8601 timestamp: 2024-01-15T15:23:45Z -> '15'
+    Trả về None nếu định dạng không hợp lệ để tránh tạo giờ '00' giả.
     """
     try:
-        # Cắt chuỗi nhanh không cần thư viện datetime để tối ưu tốc độ Mapper
+        if not timestamp_str or "T" not in timestamp_str:
+            return None
         time_part = timestamp_str.split("T")[1]
-        return time_part.split(":")[0]
+        hour_str = time_part.split(":")[0]
+        hour_int = int(hour_str)
+        if 0 <= hour_int <= 23:
+            return f"{hour_int:02d}"
+        return None
     except Exception:
-        return "00"
+        return None
 
 def main():
     for line in sys.stdin:
@@ -26,10 +32,25 @@ def main():
 
         timestamp = log.get("timestamp", "")
         hour = parse_hour(timestamp)
+        if hour is None:
+            # Bỏ qua bản ghi có timestamp không hợp lệ để tránh sai lệch dữ liệu giờ
+            continue
+
         ip = log.get("ip", "unknown")
-        status_code = int(log.get("status_code", 200))
-        log_level = log.get("log_level", "INFO")
-        response_time = float(log.get("response_time_ms", 0))
+        try:
+            status_code = int(log.get("status_code", 200))
+        except (ValueError, TypeError):
+            continue
+
+        # Đồng nhất tên trường 'level' với fallback 'log_level'
+        raw_level = log.get("level") or log.get("log_level", "INFO")
+        log_level = str(raw_level).strip().upper()
+
+        try:
+            response_time = float(log.get("response_time_ms", 0))
+        except (ValueError, TypeError):
+            response_time = 0.0
+
         endpoint = log.get("endpoint", "")
 
         # 1. Đếm tổng số request theo giờ -> Key: hour_req:<hour>

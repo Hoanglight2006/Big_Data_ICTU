@@ -1,6 +1,7 @@
 import sys
 import json
 import re
+from datetime import datetime
 
 # Biểu thức chính quy kiểm tra IPv4
 IPV4_REGEX = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
@@ -35,29 +36,44 @@ def clean_record(line):
         sys.stderr.write("reporter:counter:DataQuality,Invalid_IPv4,1\n")
         return None
 
-    # Kiểm tra status code
+    # Kiểm tra status code (phải thuộc khoảng mã chuẩn HTTP 100-599)
     try:
         status_code = int(record["status_code"])
+        if not (100 <= status_code <= 599):
+            raise ValueError("Status code out of HTTP range")
     except (ValueError, TypeError):
         sys.stderr.write("reporter:counter:DataQuality,Invalid_StatusCode,1\n")
         return None
 
-    # Kiểm tra response time
+    # Kiểm tra response time (phải là số không âm)
     try:
         resp_time = float(record["response_time_ms"])
+        if resp_time < 0:
+            raise ValueError("Negative response time")
     except (ValueError, TypeError):
         sys.stderr.write("reporter:counter:DataQuality,Invalid_ResponseTime,1\n")
         return None
 
-    # Chuẩn hóa dữ liệu
+    # Kiểm tra và chuẩn hóa cấu trúc timestamp (phải đúng định dạng ISO 8601 hợp lệ)
+    raw_ts = str(record["timestamp"]).strip()
+    try:
+        clean_ts = raw_ts.replace("Z", "+00:00")
+        parsed_dt = datetime.fromisoformat(clean_ts)
+        formatted_ts = parsed_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    except Exception:
+        sys.stderr.write("reporter:counter:DataQuality,Invalid_Timestamp,1\n")
+        return None
+
+    # Chuẩn hóa dữ liệu đạt chuẩn High-Quality
     clean_data = {
-        "timestamp": str(record["timestamp"]).strip(),
+        "timestamp": formatted_ts,
+        "service": str(record.get("service", "unknown")).strip().lower(),
         "ip": ip,
-        "method": str(record.get("method", "GET")).upper(),
+        "method": str(record.get("method", "GET")).strip().upper(),
         "endpoint": str(record["endpoint"]).strip(),
         "status_code": status_code,
         "response_time_ms": round(resp_time, 2),
-        "level": str(record["level"]).upper()
+        "level": str(record["level"]).strip().upper()
     }
     return json.dumps(clean_data)
 
