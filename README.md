@@ -75,7 +75,7 @@ Big_Data_ICTU/
 
 ## 3. Hướng Dẫn Vận Hành
 
-### Cách 1: Triển khai trực tiếp trên máy ảo Ubuntu / Linux (Phương án chính)
+### Cách 1: Triển khai trực tiếp trên máy ảo Ubuntu / Linux
 
 Đây là môi trường nghiệm thu và vận hành chính thức của đề tài trên cụm Hadoop thật.
 
@@ -91,7 +91,6 @@ Big_Data_ICTU/
 
 2. **Khởi động Flume Agent:**
    ```bash
-   cd ~/log-simulation/Big_Data_ICTU
    bash flume/start_flume.sh
    ```
    *Giữ Terminal 1 hoạt động để Flume theo dõi thư mục `data/spool` và tự động nạp log lên HDFS.*
@@ -104,7 +103,6 @@ Mở **Terminal 2**, chuyển vào thư mục dự án:
 
 **Lựa chọn 2.1: Chạy tự động toàn bộ luồng (Khuyến nghị):**
 ```bash
-cd ~/log-simulation/Big_Data_ICTU
 bash run_pipeline.sh
 ```
 
@@ -135,6 +133,9 @@ bash run_pipeline.sh
 #### Bước 3: Kiểm tra kết quả trên HDFS
 
 ```bash
+# Kiểm tra bằng dashboard
+   bash dashboard/start_dashboard.sh
+   
 # 1. Xem mẫu dữ liệu sạch sau bước tiền xử lý
 hdfs dfs -cat /data/cleaned/$(date +%F)/part-* | head -n 5
 
@@ -143,7 +144,23 @@ hdfs dfs -cat /data/output/$(date +%F)/part-* | head -n 30
 
 # 3. Xem báo cáo phát hiện bất thường JSON
 hdfs dfs -cat /data/reports/$(date +%F)/anomaly_report.json
+
 ```
+
+---
+
+#### Bước 4: Khởi chạy Web Dashboard trực quan hóa trên Localhost
+
+Sau khi pipeline hoàn tất, khởi chạy máy chủ giao diện web nội bộ:
+
+```bash
+bash dashboard/start_dashboard.sh
+```
+
+- Mở trình duyệt truy cập: **`http://localhost:8050`**
+- Dashboard tự động kết nối HDFS đọc dữ liệu báo cáo `/data/reports/<YYYY-MM-DD>/anomaly_report.json` và số liệu 24 giờ `/data/output/<YYYY-MM-DD>/part-*` để trực quan hóa chi tiết 6 quy tắc phát hiện bất thường.
+- Hỗ trợ chế độ Local Fallback khi chưa kết nối HDFS.
+
 
 ---
 
