@@ -138,10 +138,21 @@ async function loadDashboardData(customDate = null) {
 
 function updateSourceBanner(data) {
   const banner = document.getElementById("sourceBannerText");
+  const ind = document.getElementById("hdfsIndicator");
+  const txt = document.getElementById("hdfsStatusText");
+
   if (data._source === "HDFS") {
     banner.innerHTML = `<strong>Nguồn Dữ Liệu:</strong> Trực tiếp từ cụm <strong>Hadoop HDFS</strong> (<code>${data._source_path}</code>)`;
+    if (ind && txt) {
+      ind.className = "status-indicator connected";
+      txt.textContent = "HDFS: Đã Kết Nối";
+    }
   } else if (data._source) {
     banner.innerHTML = `<strong>Nguồn Dữ Liệu:</strong> Bản sao dự phòng cục bộ (<code>${data._source_path}</code>) — <em>Sẵn sàng đồng bộ lại khi khởi động HDFS</em>`;
+    if (ind && txt) {
+      ind.className = "status-indicator disconnected";
+      txt.textContent = "HDFS: Chưa kết nối (Bản Sao Cục Bộ)";
+    }
   } else {
     banner.textContent = data.error || "Không có dữ liệu.";
   }

@@ -5,10 +5,13 @@
 import os
 import sys
 import json
+import socket
 import subprocess
 import urllib.parse
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from datetime import datetime
+
+LAST_HDFS_STATUS = "UNKNOWN"
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -29,11 +32,47 @@ except ImportError:
 DASHBOARD_DIR = os.path.join(ROOT_DIR, "dashboard")
 
 
+def check_hdfs_alive():
+    """Kiểm tra trạng thái cụm HDFS bằng socket nhanh hoặc lệnh hdfs."""
+    global LAST_HDFS_STATUS
+
+    # 1. Thử kết nối socket nhanh tới NameNode (9870 UI hoặc 9000/8020 RPC)
+    for port in [9870, 9000, 8020]:
+        try:
+            with socket.create_connection(("localhost", port), timeout=0.8):
+                LAST_HDFS_STATUS = "CONNECTED"
+                return "CONNECTED"
+        except Exception:
+            pass
+
+    # 2. Nếu vừa đọc dữ liệu HDFS thành công gần đây
+    if LAST_HDFS_STATUS == "CONNECTED":
+        return "CONNECTED"
+
+    # 3. Fallback gọi lệnh hdfs với timeout hợp lý (8s)
+    try:
+        proc = subprocess.run(
+            ["hdfs", "dfs", "-test", "-e", "/"],
+            capture_output=True,
+            text=True,
+            timeout=8
+        )
+        if proc.returncode == 0:
+            LAST_HDFS_STATUS = "CONNECTED"
+            return "CONNECTED"
+    except Exception:
+        pass
+
+    LAST_HDFS_STATUS = "DISCONNECTED"
+    return "DISCONNECTED"
+
+
 def read_report_from_hdfs_or_local(date_str):
     """
     Ưu tiên đọc trực tiếp từ HDFS: /data/reports/<date>/anomaly_report.json
     Nếu không có kết nối HDFS, fallback đọc file local trong data/
     """
+    global LAST_HDFS_STATUS
     hdfs_target = f"/data/reports/{date_str}/anomaly_report.json"
     
     # 1. Thử đọc từ HDFS
@@ -45,6 +84,7 @@ def read_report_from_hdfs_or_local(date_str):
             timeout=8
         )
         if proc.returncode == 0 and proc.stdout.strip():
+            LAST_HDFS_STATUS = "CONNECTED"
             data = json.loads(proc.stdout)
             data["_source"] = "HDFS"
             data["_source_path"] = hdfs_target
@@ -84,6 +124,7 @@ def read_mapreduce_metrics(date_str):
     hdfs_target = f"/data/output/{date_str}/part-*"
     source_type = "None"
 
+    global LAST_HDFS_STATUS
     try:
         proc = subprocess.run(
             ["hdfs", "dfs", "-cat", hdfs_target],
@@ -92,6 +133,7 @@ def read_mapreduce_metrics(date_str):
             timeout=8
         )
         if proc.returncode == 0 and proc.stdout.strip():
+            LAST_HDFS_STATUS = "CONNECTED"
             lines = proc.stdout.splitlines()
             source_type = "HDFS"
     except Exception:
@@ -189,13 +231,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/status":
-            hdfs_status = "DISCONNECTED"
-            try:
-                proc = subprocess.run(["hdfs", "dfs", "-ls", "/"], capture_output=True, text=True, timeout=4)
-                if proc.returncode == 0:
-                    hdfs_status = "CONNECTED"
-            except Exception:
-                pass
+            hdfs_status = check_hdfs_alive()
 
             status_payload = {
                 "hdfs_status": hdfs_status,
