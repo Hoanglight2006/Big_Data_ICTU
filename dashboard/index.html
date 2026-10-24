@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Big Data Log Analytics & Anomaly Detection Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Chart.js CDN để vẽ biểu đồ trực quan -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Navigation Bar -->
+    <header class="top-navbar">
+      <div class="brand-section">
+        <div class="brand-logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Hadoop Log Analytics & Anomaly Detection</h1>
+          <span class="brand-sub">Samsung Innovation Campus (SIC) — Group 3 • Hadoop & YARN Cluster</span>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="status-badge" id="hdfsStatusBadge">
+          <span class="status-indicator" id="hdfsIndicator"></span>
+          <span id="hdfsStatusText">Đang kiểm tra HDFS...</span>
+        </div>
+
+        <div class="date-selector-wrapper">
+          <label for="reportDatePicker">Ngày:</label>
+          <input type="date" id="reportDatePicker" class="custom-date-picker">
+        </div>
+
+        <button id="themeToggleBtn" class="btn-theme-toggle" title="Chuyển chế độ Giao diện Sáng / Tối">
+          <span id="themeIcon">☀️</span>
+          <span id="themeText">Sáng</span>
+        </button>
+
+        <button id="refreshBtn" class="btn-refresh" title="Đọc lại dữ liệu từ HDFS">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          </svg>
+          <span>Tải Dữ Liệu</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="dashboard-content">
+      <!-- Data Source Notice Banner -->
+      <div class="source-banner" id="sourceBanner">
+        <span class="source-icon">⚡</span>
+        <span id="sourceBannerText">Nguồn dữ liệu: Đang đồng bộ...</span>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <section class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-title">Tổng Yêu Cầu (24h)</span>
+            <span class="kpi-badge kpi-badge-info">Lưu Lượng</span>
+          </div>
+          <div class="kpi-value" id="kpiTotalRequests">--</div>
+          <div class="kpi-footer" id="kpiMeanTraffic">TB: -- reqs/giờ</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-title">Cảnh Báo Phát Hiện</span>
+            <span class="kpi-badge kpi-badge-danger">Anomalies</span>
+          </div>
+          <div class="kpi-value kpi-danger" id="kpiTotalAnomalies">--</div>
+          <div class="kpi-footer" id="kpiAffectedHours">Ảnh hưởng: -- khung giờ</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-title">Báo Động Nguy Cấp</span>
+            <span class="kpi-badge kpi-badge-critical">CRITICAL</span>
+          </div>
+          <div class="kpi-value kpi-critical" id="kpiCriticalCount">--</div>
+          <div class="kpi-footer" id="kpiWarningCount">Cảnh báo WARNING: --</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-title">IP Gửi Quá Tải</span>
+            <span class="kpi-badge kpi-badge-warning">IP Flood</span>
+          </div>
+          <div class="kpi-value kpi-warning" id="kpiIpFloodCount">--</div>
+          <div class="kpi-footer" id="kpiTopFloodIp">Vượt ngưỡng 1.000 reqs/giờ</div>
+        </div>
+      </section>
+
+      <!-- Section: 6 Quy Tắc Phát Hiện Bất Thường -->
+      <section class="rules-section">
+        <div class="section-heading">
+          <h2>Tình Trạng 6 Quy Tắc Phát Hiện Bất Thường</h2>
+          <span class="section-desc">Đánh giá đa chiều theo các tiêu chí thống kê và ngưỡng nghiệp vụ</span>
+        </div>
+
+        <div class="rules-grid" id="rulesGrid">
+          <!-- Card R01 -->
+          <div class="rule-card" id="cardR01">
+            <div class="rule-top">
+              <span class="rule-tag">Quy Tắc 1</span>
+              <span class="rule-status-badge badge-normal" id="statusR01">Bình thường</span>
+            </div>
+            <h3 class="rule-name">Lưu Lượng Truy Cập Tăng Vọt</h3>
+            <p class="rule-desc">Phát hiện giờ có số lượng yêu cầu tăng vọt so với phân phối thống kê 24 giờ.</p>
+            <div class="rule-metrics">
+              <div class="metric-item">
+                <span class="m-label">Ngưỡng Báo Động (Mean + 1.8σ):</span>
+                <span class="m-val" id="valCritThreshold">-- reqs/h</span>
+              </div>
+              <div class="metric-item">
+                <span class="m-label">Số giờ tăng vọt:</span>
+                <span class="m-val" id="countR01">0 giờ</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card R02 -->
+          <div class="rule-card" id="cardR02">
+            <div class="rule-top">
+              <span class="rule-tag">Quy Tắc 2</span>
+              <span class="rule-status-badge badge-normal" id="statusR02">Bình thường</span>
+            </div>
+            <h3 class="rule-name">Tỷ Lệ Log ERROR Ứng Dụng</h3>
+            <p class="rule-desc">Phát hiện khung giờ có số log ERROR cấp ứng dụng chiếm tỷ trọng cao.</p>
+            <div class="rule-metrics">
+              <div class="metric-item">
+                <span class="m-label">Ngưỡng Cho Phép:</span>
+                <span class="m-val">≥ 5.0% tổng request</span>
+              </div>
+              <div class="metric-item">
+                <span class="m-label">Số giờ vi phạm:</span>
+                <span class="m-val" id="countR02">0 giờ</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card R03 -->
+          <div class="rule-card" id="cardR03">
+            <div class="rule-top">
+              <span class="rule-tag">Quy Tắc 3</span>
+              <span class="rule-status-badge badge-normal" id="statusR03">Bình thường</span>
+            </div>
+            <h3 class="rule-name">Tỷ Lệ Lỗi Máy Chủ HTTP 5xx</h3>
+            <p class="rule-desc">Theo dõi các mã lỗi 500/503 từ hạ tầng máy chủ phản hồi cho client.</p>
+            <div class="rule-metrics">
+              <div class="metric-item">
+                <span class="m-label">Ngưỡng Cho Phép:</span>
+                <span class="m-val">≥ 5.0% tổng request</span>
+              </div>
+              <div class="metric-item">
+                <span class="m-label">Số giờ vi phạm:</span>
+                <span class="m-val" id="countR03">0 giờ</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card R04 -->
+          <div class="rule-card" id="cardR04">
+            <div class="rule-top">
+              <span class="rule-tag">Quy Tắc 4</span>
+              <span class="rule-status-badge badge-normal" id="statusR04">Bình thường</span>
+            </div>
+            <h3 class="rule-name">Spam / Tấn Công Làm Nghẽn (IP)</h3>
+            <p class="rule-desc">Xác định các địa chỉ IP có hành vi flood, gửi số lượng yêu cầu bất thường.</p>
+            <div class="rule-metrics">
+              <div class="metric-item">
+                <span class="m-label">Ngưỡng Quá Tải:</span>
+                <span class="m-val">≥ 1.000 reqs/IP/giờ</span>
+              </div>
+              <div class="metric-item">
+                <span class="m-label">Số IP vi phạm:</span>
+                <span class="m-val" id="countR04">0 IP</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card R05 -->
+          <div class="rule-card" id="cardR05">
+            <div class="rule-top">
+              <span class="rule-tag">Quy Tắc 5</span>
+              <span class="rule-status-badge badge-normal" id="statusR05">Bình thường</span>
+            </div>
+            <h3 class="rule-name">Độ Trễ Trung Bình Giờ Quá Chậm</h3>
+            <p class="rule-desc">Đánh giá thời gian phản hồi trung bình của hệ thống trong từng khung giờ.</p>
+            <div class="rule-metrics">
+              <div class="metric-item">
+                <span class="m-label">Ngưỡng Tối Đa:</span>
+                <span class="m-val">≥ 2.000 ms (2 giây)</span>
+              </div>
+              <div class="metric-item">
+                <span class="m-label">Số giờ bị nghẽn:</span>
+                <span class="m-val" id="countR05">0 giờ</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card R06 -->
+          <div class="rule-card" id="cardR06">
+            <div class="rule-top">
+              <span class="rule-tag">Quy Tắc 6</span>
+              <span class="rule-status-badge badge-normal" id="statusR06">Bình thường</span>
+            </div>
+            <h3 class="rule-name">Endpoint Gặp Nhiều Lỗi Nhất</h3>
+            <p class="rule-desc">Thống kê xếp hạng và cảnh báo chức năng web có số lần gặp lỗi vượt trội.</p>
+            <div class="rule-metrics">
+              <div class="metric-item">
+                <span class="m-label">Ngưỡng Cảnh Báo:</span>
+                <span class="m-val">≥ 15.000 lỗi/ngày</span>
+              </div>
+              <div class="metric-item">
+                <span class="m-label">Endpoint vượt ngưỡng:</span>
+                <span class="m-val" id="countR06">0 endpoint</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Charts Section -->
+      <section class="charts-section">
+        <div class="chart-box chart-box-wide">
+          <div class="chart-header">
+            <div>
+              <h3>Phân Tích Lưu Lượng 24 Giờ & Ngưỡng Bất Thường (Quy Tắc 1)</h3>
+              <span class="chart-sub">Đường lưu lượng thực tế đối chiếu với ngưỡng cảnh báo (Warning) và báo động (Critical)</span>
+            </div>
+          </div>
+          <div class="chart-canvas-container">
+            <canvas id="trafficChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-box">
+          <div class="chart-header">
+            <div>
+              <h3>Tỷ Lệ Log ERROR vs Lỗi HTTP 5xx Theo Giờ (Quy Tắc 2 & 3)</h3>
+              <span class="chart-sub">Phân biệt lỗi cấp độ ứng dụng và mã phản hồi máy chủ 5xx</span>
+            </div>
+          </div>
+          <div class="chart-canvas-container">
+            <canvas id="errorRateChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-box">
+          <div class="chart-header">
+            <div>
+              <h3>Thời Gian Phản Hồi Trung Bình Theo Giờ (Quy Tắc 5)</h3>
+              <span class="chart-sub">Độ trễ trung bình mỗi giờ so sánh với giới hạn trần 2.000 ms</span>
+            </div>
+          </div>
+          <div class="chart-canvas-container">
+            <canvas id="latencyChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-box">
+          <div class="chart-header">
+            <div>
+              <h3>Top Địa Chỉ IP Gửi Quá Tải / Spam (Quy Tắc 4)</h3>
+              <span class="chart-sub">Các IP có lưu lượng vượt ngưỡng báo động 1.000 yêu cầu/giờ</span>
+            </div>
+          </div>
+          <div class="chart-canvas-container">
+            <canvas id="ipFloodChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-box chart-box-wide">
+          <div class="chart-header">
+            <div>
+              <h3>Xếp Hạng Các Đường Dẫn Gặp Lỗi Nhiều Nhất (Quy Tắc 6)</h3>
+              <span class="chart-sub">Top endpoints phát sinh mã trạng thái ≥ 400 trong toàn bộ 24 giờ</span>
+            </div>
+          </div>
+          <div class="chart-canvas-container">
+            <canvas id="endpointChart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Detailed Anomalies Table -->
+      <section class="table-section">
+        <div class="table-card">
+          <div class="table-header-flex">
+            <div>
+              <h3>Chi Tiết Các Cảnh Báo Bất Thường Trong Ngày</h3>
+              <span class="table-sub">Danh sách sự cố được xác định từ kết quả Hadoop MapReduce</span>
+            </div>
+
+            <div class="table-filters">
+              <select id="filterRule" class="filter-select">
+                <option value="ALL">Tất cả quy tắc</option>
+                <option value="R01_TRAFFIC_SPIKE">R01: Lưu lượng tăng vọt</option>
+                <option value="R02_ERROR_RATE">R02: Tỷ lệ ERROR cao</option>
+                <option value="R03_HTTP_5XX_RATE">R03: Lỗi máy chủ 5xx</option>
+                <option value="R04_IP_FLOOD">R04: Spam IP / DoS</option>
+                <option value="R05_RESPONSE_TIME">R05: Xử lý chậm</option>
+                <option value="R06_ENDPOINT_ERROR_SPIKE">R06: Endpoint lỗi cao</option>
+              </select>
+
+              <select id="filterSeverity" class="filter-select">
+                <option value="ALL">Tất cả mức độ</option>
+                <option value="CRITICAL">Chỉ CRITICAL</option>
+                <option value="WARNING">Chỉ WARNING</option>
+              </select>
+
+              <input type="text" id="filterSearch" class="search-input" placeholder="Tìm kiếm nội dung...">
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 90px;">Khung Giờ</th>
+                  <th style="width: 140px;">Quy Tắc</th>
+                  <th style="width: 120px;">Mức Độ</th>
+                  <th>Thông Điệp Chi Tiết & Ngưỡng Kích Hoạt</th>
+                  <th style="width: 150px;">Đối Tượng (IP / EP)</th>
+                </tr>
+              </thead>
+              <tbody id="anomaliesTableBody">
+                <tr>
+                  <td colspan="5" class="table-empty">Đang tải dữ liệu từ máy chủ...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="dashboard-footer">
+      <span>Đề tài: Hệ Thống Phân Tích Nhật Ký Web Server & Phát Hiện Bất Thường (SIC Big Data Group 3)</span>
+      <span>Công nghệ: Apache Hadoop 3.2.1 • YARN • Hadoop Streaming • Apache Flume • Python 3</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
