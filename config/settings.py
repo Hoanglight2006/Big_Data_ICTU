@@ -51,15 +51,15 @@ ENDPOINTS = [
 
 HTTP_METHODS = ["GET", "POST", "PUT", "DELETE"]
 
-# Phân phối status code (xác suất)
+# Phân phối status code (xác suất nền trong điều kiện hoạt động bình thường)
 STATUS_CODES = {
-    200: 0.70,   # 70% thành công
-    201: 0.08,   # 8% created
-    400: 0.08,   # 8% bad request
-    401: 0.04,   # 4% unauthorized
-    404: 0.04,   # 4% not found
-    500: 0.04,   # 4% server error
-    503: 0.02,   # 2% service unavailable
+    200: 0.78,    # 78% thành công
+    201: 0.10,    # 10% created
+    400: 0.05,    # 5% bad request
+    401: 0.03,    # 3% unauthorized
+    404: 0.025,   # 2.5% not found
+    500: 0.01,    # 1.0% server error
+    503: 0.005,   # 0.5% service unavailable (tổng 5xx nền = 1.5% < ngưỡng 5.0%)
 }
 
 # --- Anomaly Injection (Nếu không cấu hình, generate_logs.py sẽ tự động random) ---

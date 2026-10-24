@@ -152,15 +152,26 @@ function updateKpis(report, metrics) {
   if (metrics && metrics.hour_requests) {
     totalReqs = Object.values(metrics.hour_requests).reduce((a, b) => a + b, 0);
   } else if (report.baseline) {
-    totalReqs = Math.round((report.baseline.mean || 0) * 24);
+    const mean = report.baseline.mean_hourly_traffic ?? report.baseline.mean ?? 0;
+    totalReqs = Math.round(mean * 24);
   }
   document.getElementById("kpiTotalRequests").textContent = totalReqs.toLocaleString();
 
-  const meanTraffic = report.baseline ? Math.round(report.baseline.mean || 0) : 0;
+  const meanTraffic = report.baseline
+    ? Math.round(report.baseline.mean_hourly_traffic ?? report.baseline.mean ?? (totalReqs / 24))
+    : (totalReqs > 0 ? Math.round(totalReqs / 24) : 0);
   document.getElementById("kpiMeanTraffic").textContent = `Trung bình: ${meanTraffic.toLocaleString()} reqs/giờ`;
 
-  const totalAnomalies = report.total_anomalies || (report.anomalies ? report.anomalies.length : 0);
+  const totalAnomalies = report.total_anomalies_detected ?? report.total_anomalies ?? (report.anomalies ? report.anomalies.length : 0);
   document.getElementById("kpiTotalAnomalies").textContent = totalAnomalies;
+
+  const affectedHours = report.affected_hours_count !== undefined
+    ? report.affected_hours_count
+    : new Set((report.anomalies || []).map(a => a.hour).filter(h => h !== undefined)).size;
+  const affectedHoursEl = document.getElementById("kpiAffectedHours");
+  if (affectedHoursEl) {
+    affectedHoursEl.textContent = `Ảnh hưởng: ${affectedHours} khung giờ`;
+  }
 
   const criticals = (report.anomalies || []).filter(a => a.severity === "CRITICAL").length;
   const warnings = (report.anomalies || []).filter(a => a.severity === "WARNING").length;
